@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
 import { useSimulation } from '../../context/SimulationContext'
 import { formatElapsed } from '../../lib/utils'
+import LetterGlitch from './LetterGlitch/LetterGlitch'
 
 const STAGES = ['researching', 'planning', 'building', 'deploying', 'operating', 'complete'] as const
 
@@ -43,8 +44,28 @@ export function StatusBar({ isMuted, onToggleMute, onStop }: StatusBarProps) {
         backdropFilter: 'blur(16px)',
         transition: 'border-color 800ms ease',
         zIndex: 10,
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
+      {/* LetterGlitch texture — barely-visible animated watermark */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 0,
+          opacity: 0.09,
+          pointerEvents: 'none',
+        }}
+      >
+        <LetterGlitch
+          glitchColors={['#1a1535', '#0e1a30', '#141020']}
+          glitchSpeed={50}
+          centerVignette={true}
+          outerVignette={false}
+          smooth={true}
+        />
+      </div>
       {/* LEFT: NEXUS // mission */}
       <div
         className="flex items-center gap-2 min-w-0 flex-shrink-0"
