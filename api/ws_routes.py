@@ -120,6 +120,14 @@ def translate_event(event: SimulationEvent) -> list[dict] | None:
             return [{"type": "stage_change", "stage": next_stage}]
         return None
 
+    if et == EventType.ERROR:
+        return [{
+            "type": "error",
+            "message": d.get("error", "Unknown error"),
+            "agentId": d.get("agent_id", ""),
+            "fatal": d.get("fatal", False),
+        }]
+
     if et == EventType.SIMULATION_COMPLETED:
         msgs = []
         for aid in ["product", "tech", "ops", "finance"]:
@@ -132,6 +140,69 @@ def translate_event(event: SimulationEvent) -> list[dict] | None:
         return msgs
 
     return None
+
+
+async def _send_loop(
+    ws: WebSocket,
+    queue: asyncio.Queue,
+) -> None:
+    """Push events from the event bus to the WebSocket client.
+
+    This is the primary lifecycle controller — it runs until
+    SIMULATION_COMPLETED arrives or the WebSocket disconnects.
+    """
+    while True:
+        try:
+            event = await asyncio.wait_for(queue.get(), timeout=120.0)
+        except asyncio.TimeoutError:
+            # Keep the connection alive during long Claude API calls
+            await ws.send_text(json.dumps({"type": "keepalive"}))
+            continue
+
+        messages = translate_event(event)
+        if messages:
+            for msg in messages:
+                await ws.send_text(json.dumps(msg))
+                # Voice synthesis for key events
+                should_voice, voice_text = should_voice_event(msg["type"], msg)
+                if should_voice:
+                    audio_b64 = await synthesize_for_agent(
+                        voice_text, msg.get("agentName", "narrator"),
+                    )
+                    if audio_b64:
+                        await ws.send_text(json.dumps({
+                            "type": "audio_narration",
+                            "audio_base64": audio_b64,
+                            "content_type": "audio/mpeg",
+                            "text": voice_text,
+                            "agentName": msg.get("agentName", "narrator"),
+                        }))
+
+        if event.event_type == EventType.SIMULATION_COMPLETED:
+            return
+
+
+async def _recv_loop(ws: WebSocket, session) -> None:
+    """Receive user decisions from the WebSocket client.
+
+    Runs independently — its exit does NOT affect the simulation.
+    Catches all exceptions so cancellation is clean.
+    """
+    while True:
+        try:
+            raw = await ws.receive_text()
+            data = json.loads(raw)
+            if data.get("type") == "decision":
+                session.resolve_decision(
+                    approved=data.get("approved", False),
+                    reason=data.get("reason", ""),
+                )
+            elif data.get("type") == "stop_simulation":
+                session.status = "stopping"
+        except (WebSocketDisconnect, asyncio.CancelledError):
+            return
+        except Exception:
+            continue
 
 
 @ws_router.websocket("/ws/simulation")
@@ -158,69 +229,21 @@ async def websocket_simulation(ws: WebSocket):
         ))
 
         sub_id, queue = session.event_bus.subscribe()
-        task = asyncio.create_task(run_simulation(session))
 
-        async def send_loop():
-            """Push events from event bus to WebSocket."""
-            while True:
-                try:
-                    event = await asyncio.wait_for(queue.get(), timeout=60.0)
-                except asyncio.TimeoutError:
-                    await ws.send_text(json.dumps({"type": "keepalive"}))
-                    continue
+        # Start simulation as a background task
+        sim_task = asyncio.create_task(run_simulation(session))
 
-                messages = translate_event(event)
-                if messages:
-                    for msg in messages:
-                        await ws.send_text(json.dumps(msg))
-                        # Voice synthesis for key events
-                        should_voice, voice_text = should_voice_event(msg["type"], msg)
-                        if should_voice:
-                            audio_b64 = await synthesize_for_agent(voice_text, msg.get("agentName", "narrator"))
-                            if audio_b64:
-                                await ws.send_text(json.dumps({
-                                    "type": "audio_narration",
-                                    "audio_base64": audio_b64,
-                                    "content_type": "audio/mpeg",
-                                    "text": voice_text,
-                                    "agentName": msg.get("agentName", "narrator"),
-                                }))
+        # Start recv_loop independently — it only forwards user decisions
+        recv_task = asyncio.create_task(_recv_loop(ws, session))
 
-                if event.event_type == EventType.SIMULATION_COMPLETED:
-                    return
-
-        async def recv_loop():
-            """Receive user decisions from WebSocket."""
-            while True:
-                try:
-                    raw = await ws.receive_text()
-                    data = json.loads(raw)
-                    if data.get("type") == "decision":
-                        session.resolve_decision(
-                            approved=data.get("approved", False),
-                            reason=data.get("reason", ""),
-                        )
-                    elif data.get("type") == "stop_simulation":
-                        session.status = "stopping"
-                except WebSocketDisconnect:
-                    return
-                except Exception:
-                    continue
-
-        send_task = asyncio.create_task(send_loop())
-        recv_task = asyncio.create_task(recv_loop())
-
+        # send_loop is the primary lifecycle: runs until SIMULATION_COMPLETED
         try:
-            _done, pending = await asyncio.wait(
-                [send_task, recv_task],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            for t in pending:
-                t.cancel()
+            await _send_loop(ws, queue)
         finally:
+            recv_task.cancel()
             session.event_bus.unsubscribe(sub_id)
-            if not task.done():
-                task.cancel()
+            if not sim_task.done():
+                sim_task.cancel()
 
     except WebSocketDisconnect:
         logger.info("WebSocket client disconnected")

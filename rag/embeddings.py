@@ -1,25 +1,25 @@
-from openai import OpenAI
+from google import genai
 
 from config import get_settings
 
 
 class EmbeddingProvider:
-    """Thin wrapper around an embedding API. Swap the internals to change providers."""
+    """Thin wrapper around Google Gemini embedding API."""
 
     def __init__(self):
         s = get_settings()
-        self.client = OpenAI(api_key=s.openai_api_key)
+        self.client = genai.Client(api_key=s.gemini_api_key)
         self.model = s.embedding_model
         self.dimensions = s.embedding_dimensions
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         """Embed a batch of texts. Returns list of vectors."""
-        response = self.client.embeddings.create(
+        result = self.client.models.embed_content(
             model=self.model,
-            input=texts,
-            dimensions=self.dimensions,
+            contents=texts,
+            config={"output_dimensionality": self.dimensions},
         )
-        return [item.embedding for item in response.data]
+        return [e.values for e in result.embeddings]
 
     def embed_query(self, text: str) -> list[float]:
         """Embed a single query string."""

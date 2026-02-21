@@ -133,6 +133,15 @@ export function useWebSocket(url: string | null) {
             window.dispatchEvent(new CustomEvent('sim-audio', { detail: data }))
             break
           }
+          case 'error': {
+            const errorMsg = data.message as string || 'Unknown error'
+            addActivity({ agentId: (data.agentId as AgentId) || 'finance', message: `ERROR: ${errorMsg}`, timestamp: Date.now(), type: 'block' })
+            if (data.fatal) {
+              setRunning(false)
+              setStage('complete')
+            }
+            break
+          }
         }
       } catch {
         // non-JSON message, ignore

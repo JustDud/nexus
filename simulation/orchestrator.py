@@ -54,8 +54,11 @@ async def _run_agent(
     prompts: dict[str, str],
     retriever: Retriever | None,
     use_rag: bool = False,
-) -> None:
-    """Run a single agent: thinking -> prompt -> query -> response -> proposal handling."""
+) -> bool:
+    """Run a single agent: thinking -> prompt -> query -> response -> proposal handling.
+
+    Returns True on success, False if the agent query failed.
+    """
     frontend_id = BACKEND_TO_FRONTEND[agent_name]
 
     await bus.emit(SimulationEvent(
@@ -68,8 +71,8 @@ async def _run_agent(
         state,
     )
 
-    agent = get_agent(agent_name, retriever=retriever)
     try:
+        agent = get_agent(agent_name, retriever=retriever)
         if use_rag:
             response = await agent.query(
                 question=prompt,
@@ -86,7 +89,7 @@ async def _run_agent(
             event_type=EventType.ERROR,
             data={"agent_id": frontend_id, "error": str(e)},
         ))
-        return
+        return False
 
     state.agent_outputs[f"{agent_name}_{state.phase.value}"] = response.content
 
@@ -163,6 +166,7 @@ async def _run_agent(
         ))
 
     await asyncio.sleep(1.0)
+    return True
 
 
 async def run_simulation(session: Session) -> None:
@@ -185,12 +189,24 @@ async def run_simulation(session: Session) -> None:
 
             agents_for_phase = PHASE_AGENTS[phase]
             prompts = PHASE_PROMPTS[phase]
+            phase_successes = 0
 
             for agent_name in agents_for_phase:
                 if session.status in ("stopping", "failed"):
                     break
                 use_rag = (phase == Phase.RESEARCHING)
-                await _run_agent(session, state, bus, agent_name, prompts, retriever, use_rag=use_rag)
+                ok = await _run_agent(session, state, bus, agent_name, prompts, retriever, use_rag=use_rag)
+                if ok:
+                    phase_successes += 1
+
+            if phase_successes == 0 and len(agents_for_phase) > 0:
+                # Every agent in this phase failed — abort the simulation
+                session.status = "failed"
+                await bus.emit(SimulationEvent(
+                    event_type=EventType.ERROR,
+                    data={"error": "All agents failed. Check your API key and credits.", "fatal": True},
+                ))
+                break
 
             await bus.emit(SimulationEvent(
                 event_type=EventType.ROUND_COMPLETED,
@@ -216,10 +232,21 @@ async def run_simulation(session: Session) -> None:
                 },
             ))
 
+            ops_successes = 0
             for agent_name in ops_agents:
                 if session.status in ("stopping", "failed"):
                     break
-                await _run_agent(session, state, bus, agent_name, ops_prompts, retriever, use_rag=False)
+                ok = await _run_agent(session, state, bus, agent_name, ops_prompts, retriever, use_rag=False)
+                if ok:
+                    ops_successes += 1
+
+            if ops_successes == 0:
+                session.status = "failed"
+                await bus.emit(SimulationEvent(
+                    event_type=EventType.ERROR,
+                    data={"error": "All agents failed during operations. Check your API key and credits.", "fatal": True},
+                ))
+                break
 
             await bus.emit(SimulationEvent(
                 event_type=EventType.ROUND_COMPLETED,
