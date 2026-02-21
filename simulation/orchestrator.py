@@ -294,3 +294,31 @@ class SimulationOrchestrator:
                 "total_spent": self.state.budget.total_spent,
                 "warning": "Budget below 20% threshold",
             })
+
+
+# ---------------------------------------------------------------------------
+# Module-level entry point (used by ws_routes and simulation_routes)
+# ---------------------------------------------------------------------------
+
+
+async def run_simulation(session) -> None:
+    """Run the full simulation lifecycle on a session.
+
+    Starts the orchestrator, runs until a decision is needed or the
+    simulation completes, and updates session status accordingly.
+    """
+    from simulation.events import EventType, SimulationEvent
+
+    try:
+        await session.orchestrator.start(session.idea, session.budget)
+        await session.orchestrator.run_until_decision()
+
+        if session.state.phase.value == "DECISION":
+            session.status = "paused"
+        elif session.state.phase.value in ("COMPLETED", "FAILED"):
+            session.status = session.state.phase.value.lower()
+    except Exception as e:
+        session.status = "failed"
+        await session.event_bus.emit(
+            SimulationEvent(event_type=EventType.ERROR, data={"error": str(e)})
+        )
