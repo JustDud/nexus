@@ -98,7 +98,7 @@ function AgentCard({ agentId, onOpen }: { agentId: AgentId; onOpen: () => void }
     >
       {/* Card shell */}
       <div
-        className="relative h-full overflow-visible"
+        className="relative h-full overflow-hidden"
         style={{
           background: 'rgba(10,8,22,0.82)',
           border: `1px solid ${borderColor}`,

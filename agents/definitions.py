@@ -113,12 +113,36 @@ might have legal implications.
 Always categorize risks by severity (low/medium/high) and likelihood.\
 """
 
+STARTUP_ADVISOR_PROMPT = """\
+You are a startup advisor with deep expertise across fundraising, product strategy, \
+growth, go-to-market, and company building. You answer questions grounded in \
+curated knowledge from YCombinator, Paul Graham essays, Reforge, SaaStr, a16z, \
+and other top startup resources.
+
+Your approach:
+- Ground every recommendation in the provided source documents
+- Be direct and specific — no vague platitudes
+- When the documents give a clear answer, quote or paraphrase them precisely
+- When multiple sources agree, highlight the consensus
+- When sources conflict, present both perspectives and your assessment
+- Call out what stage the advice applies to (pre-seed, seed, Series A, etc.)
+
+If the retrieved context does not cover the question, say so clearly rather than \
+making things up. Always cite which source or domain your answer draws from.\
+"""
+
 
 # ---------------------------------------------------------------------------
 # Agent configs
 # ---------------------------------------------------------------------------
 
 AGENT_CONFIGS: dict[str, AgentConfig] = {
+    "advisor": AgentConfig(
+        name="Startup Advisor",
+        role="General startup Q&A grounded in the full knowledge base",
+        domain="",  # empty = no filter, searches all indexed chunks
+        system_prompt=STARTUP_ADVISOR_PROMPT,
+    ),
     "market": AgentConfig(
         name="Market Agent",
         role="Research, ICP, competitive analysis",

@@ -7,9 +7,12 @@ import { AgentStage } from '../components/simulation/AgentStage'
 import { ActivityFeed } from '../components/simulation/ActivityFeed'
 import { BudgetBar } from '../components/simulation/BudgetBar'
 import { StatusBar } from '../components/simulation/StatusBar'
+import { ApprovalDialog } from '../components/simulation/ApprovalDialog'
+import { useAudioPlayer } from '../hooks/useAudioPlayer'
 import Prism from '../components/simulation/Prism/Prism'
 
-const WS_URL: string | null = null
+// Change this to your backend WS URL, or null to always use mock
+const WS_URL: string | null = `ws://${window.location.host}/ws/simulation`
 
 function PrismBackground({ danger }: { danger: boolean }) {
   return (
@@ -61,7 +64,8 @@ function PrismBackground({ danger }: { danger: boolean }) {
 export function SimulationPage() {
   const { state, tickElapsed } = useSimulation()
   const navigate = useNavigate()
-  const { connected } = useWebSocket(WS_URL)
+  const { connected, sendDecision, stopSimulation } = useWebSocket(WS_URL)
+  const { isMuted, setIsMuted, isPlaying } = useAudioPlayer()
 
   useEffect(() => {
     if (!state.mission) navigate('/')
@@ -81,7 +85,8 @@ export function SimulationPage() {
       className="flex flex-col"
       data-danger={String(state.dangerMode)}
       style={{
-        minHeight: '100vh',
+        height: '100vh',
+        overflow: 'hidden',
         background: '#05050a',
         position: 'relative',
       }}
@@ -90,7 +95,11 @@ export function SimulationPage() {
 
       {/* Status bar */}
       <div className="sticky top-0 z-20">
-        <StatusBar />
+        <StatusBar
+          isMuted={isMuted}
+          onToggleMute={() => setIsMuted(!isMuted)}
+          onStop={() => { stopSimulation(); navigate('/') }}
+        />
       </div>
 
       {/* Main */}
@@ -107,6 +116,8 @@ export function SimulationPage() {
       <div className="flex-shrink-0" style={{ position: 'relative', zIndex: 1 }}>
         <BudgetBar />
       </div>
+
+      <ApprovalDialog onDecide={sendDecision} />
     </div>
   )
 }

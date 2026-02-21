@@ -7,13 +7,24 @@ export type SimulationStage =
   | 'planning'
   | 'building'
   | 'deploying'
+  | 'operating'
   | 'complete'
 
 export type ActivityType = 'thought' | 'action' | 'block' | 'complete'
 
-export type TransactionStatus = 'approved' | 'blocked'
+export type TransactionStatus = 'approved' | 'blocked' | 'pending'
 
 export type AgentShape = 'icosahedron' | 'torusKnot' | 'dodecahedron' | 'octahedron'
+
+export interface PendingApproval {
+  proposalId: string
+  title: string
+  cost: number
+  description: string
+  agentId: AgentId
+  agentName: string
+  timestamp: number
+}
 
 export interface Action {
   id: string
@@ -60,6 +71,9 @@ export interface SimulationState {
   activityLog: ActivityEntry[]
   transactions: Transaction[]
   isRunning: boolean
+  pendingApproval: PendingApproval | null
+  operationsRound: number
+  isPaused: boolean
 }
 
 export interface AgentDefinition {

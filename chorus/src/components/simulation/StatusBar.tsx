@@ -3,17 +3,26 @@ import { useSimulation } from '../../context/SimulationContext'
 import { formatElapsed } from '../../lib/utils'
 import LetterGlitch from './LetterGlitch/LetterGlitch'
 
-const STAGES = ['researching', 'planning', 'building', 'deploying', 'complete'] as const
+const STAGES = ['researching', 'planning', 'building', 'deploying', 'operating', 'complete'] as const
 
 const STAGE_LABEL: Record<string, string> = {
   researching: 'RESEARCH',
   planning:    'PLANNING',
   building:    'BUILDING',
   deploying:   'DEPLOY',
+  operating:   'OPS',
   complete:    'COMPLETE',
 }
 
-export function StatusBar() {
+interface StatusBarProps {
+  isPaused?: boolean
+  isMuted?: boolean
+  onToggleMute?: () => void
+  onStop?: () => void
+  operationsRound?: number
+}
+
+export function StatusBar({ isMuted, onToggleMute, onStop }: StatusBarProps) {
   const { state } = useSimulation()
 
   const currentStageIdx = STAGES.indexOf(state.stage as typeof STAGES[number])
@@ -92,6 +101,28 @@ export function StatusBar() {
         >
           {missionTitle || 'no mission set'}
         </span>
+        {state.isPaused && (
+          <motion.span
+            className="font-bold text-[10px] tracking-widest px-2 py-0.5 rounded-full ml-2 flex-shrink-0"
+            style={{
+              fontFamily: 'Space Grotesk, sans-serif',
+              background: 'rgba(239,68,68,0.15)',
+              color: '#ef4444',
+              border: '1px solid rgba(239,68,68,0.3)',
+            }}
+            animate={{ opacity: [1, 0.5, 1] }}
+            transition={{ duration: 1.2, repeat: Infinity }}
+          >
+            WAITING FOR CEO
+          </motion.span>
+        )}
+        {state.operationsRound > 0 && !state.isPaused && (
+          <span
+            className="font-mono text-[10px] text-[#64748b] ml-2 flex-shrink-0"
+          >
+            Week {state.operationsRound}
+          </span>
+        )}
       </div>
 
       {/* CENTER: stage pills */}
@@ -135,7 +166,7 @@ export function StatusBar() {
         })}
       </div>
 
-      {/* RIGHT: elapsed time + burn rate */}
+      {/* RIGHT: elapsed time + burn rate + controls */}
       <div
         className="flex items-center gap-4 flex-shrink-0"
         style={{ position: 'relative', zIndex: 1 }}
@@ -181,6 +212,44 @@ export function StatusBar() {
             ${burnRate}/min
           </div>
         </div>
+
+        {/* Mute / unmute button */}
+        {onToggleMute && (
+          <button
+            onClick={onToggleMute}
+            className="p-1.5 rounded-lg transition-colors hover:bg-[#1a1a2e]"
+            title={isMuted ? 'Unmute' : 'Mute'}
+          >
+            {isMuted ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="1" y1="1" x2="23" y2="23" />
+                <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6" />
+                <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.12 1.5-.35 2.18" />
+                <line x1="12" y1="19" x2="12" y2="23" />
+                <line x1="8" y1="23" x2="16" y2="23" />
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+              </svg>
+            )}
+          </button>
+        )}
+
+        {/* Stop button */}
+        {onStop && (
+          <button
+            onClick={onStop}
+            className="p-1.5 rounded-lg transition-colors hover:bg-[#1a1a2e]"
+            title="Stop simulation"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#ef4444" stroke="none">
+              <rect x="4" y="4" width="16" height="16" rx="2" />
+            </svg>
+          </button>
+        )}
       </div>
     </div>
   )

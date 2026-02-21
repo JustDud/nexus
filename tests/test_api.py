@@ -26,7 +26,7 @@ class TestAgentsListEndpoint:
         assert resp.status_code == 200
         data = resp.json()
 
-        expected_agents = {"market", "product", "tech", "finance", "risk"}
+        expected_agents = {"advisor", "market", "product", "tech", "finance", "risk"}
         assert set(data.keys()) == expected_agents
 
     def test_each_agent_has_fields(self, client):
@@ -43,6 +43,8 @@ class TestAgentsListEndpoint:
         data = resp.json()
 
         for key, agent_info in data.items():
+            if key == "advisor":
+                continue  # advisor has no domain filter
             assert agent_info["domain"] == key
 
 
