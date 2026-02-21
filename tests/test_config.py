@@ -81,7 +81,7 @@ class TestSettingsClass:
                 gemini_api_key="test",
                 _env_file=None,
             )
-            assert s.default_model == "claude-sonnet-4-6"
+            assert s.default_model == "claude-haiku-4-5-20251001"
             assert s.embedding_provider == "gemini"
             assert s.embedding_model == "gemini-embedding-001"
             assert s.embedding_dimensions == 768

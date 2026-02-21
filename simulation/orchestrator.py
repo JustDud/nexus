@@ -119,111 +119,116 @@ class SimulationOrchestrator:
     # ------------------------------------------------------------------
 
     async def _run_research(self) -> None:
-        """Market Agent researches the idea using RAG retrieval."""
-        agent = self.agents["market"]
-        prompt = research_prompt(self.state.startup_idea)
-        context = self.state.get_context_dict()
+        """Parallel batch 1: Market + Product + Tech analyse simultaneously."""
 
-        await self._emit_thinking("market", "Researching market opportunity")
-        response = await agent.query(prompt, context=context)
-        await self._emit_response("market", response.content)
+        async def _market():
+            agent = self.agents["market"]
+            prompt = research_prompt(self.state.startup_idea)
+            context = self.state.get_context_dict()
+            await self._emit_thinking("market", "Researching market opportunity")
+            resp = await agent.query(prompt, context=context)
+            await self._emit_response("market", resp.content)
+            self.state.add_message(
+                agent=resp.agent, role=resp.role,
+                content=resp.content, phase=Phase.RESEARCH,
+                citations=resp.citations,
+            )
+            return resp
 
-        self.state.add_message(
-            agent=response.agent,
-            role=response.role,
-            content=response.content,
-            phase=Phase.RESEARCH,
-            citations=response.citations,
+        async def _product():
+            agent = self.agents["product"]
+            prompt = mvp_proposal_prompt(self.state.startup_idea)
+            context = self.state.get_context_dict()
+            await self._emit_thinking("product", "Designing MVP proposal")
+            resp = await agent.query_without_rag(prompt, context=context)
+            await self._emit_response("product", resp.content)
+            self.state.add_message(
+                agent=resp.agent, role=resp.role,
+                content=resp.content, phase=Phase.RESEARCH,
+                citations=resp.citations,
+            )
+            return resp
+
+        async def _tech():
+            agent = self.agents["tech"]
+            prompt = feasibility_review_prompt(self.state.startup_idea)
+            context = self.state.get_context_dict()
+            await self._emit_thinking("tech", "Reviewing technical feasibility")
+            resp = await agent.query_without_rag(prompt, context=context)
+            await self._emit_response("tech", resp.content)
+            self.state.add_message(
+                agent=resp.agent, role=resp.role,
+                content=resp.content, phase=Phase.RESEARCH,
+                citations=resp.citations,
+            )
+            return resp
+
+        _market_resp, product_resp, tech_resp = await asyncio.gather(
+            _market(), _product(), _tech(),
         )
+
+        # Extract proposals from Product and Tech for the next batch
+        proposals: list[Proposal] = []
+        for resp in (product_resp, tech_resp):
+            p = extract_proposal_from_response(resp.content, resp.agent)
+            if p:
+                proposals.append(p)
+        self.state.pending_proposals = proposals
 
         self.state.completed_phases.append(str(Phase.RESEARCH))
         self.state.phase = Phase.PROPOSAL
         await self.event_bus.emit(PHASE_CHANGED, {"phase": str(Phase.PROPOSAL)})
 
     async def _run_proposal(self) -> None:
-        """Chain: Product → Tech → Finance → Risk.
+        """Parallel batch 2: Finance + Risk review proposals simultaneously.
 
-        Each agent receives the full conversation so far (via state.get_context_dict()),
-        so every agent sees what all prior agents have said across all phases.
-        The prompts provide the specific task; the conversation provides full context.
+        Proposals were already extracted during _run_research (batch 1).
+        Finance and Risk now see the full conversation (market + product + tech)
+        and evaluate the proposals in parallel.
         """
-        proposals: list[Proposal] = []
-
-        # Product Agent — MVP proposal (sees research via conversation)
-        product_agent = self.agents["product"]
-        product_prompt = mvp_proposal_prompt(self.state.startup_idea)
-        await self._emit_thinking("product", "Designing MVP proposal")
-        product_resp = await product_agent.query_without_rag(
-            product_prompt, context=self.state.get_context_dict(),
-        )
-        await self._emit_response("product", product_resp.content)
-        self.state.add_message(
-            agent=product_resp.agent, role=product_resp.role,
-            content=product_resp.content, phase=Phase.PROPOSAL,
-            citations=product_resp.citations,
-        )
-        p = extract_proposal_from_response(product_resp.content, product_resp.agent)
-        if p:
-            proposals.append(p)
-
-        # Tech Agent — feasibility review (sees research + product via conversation)
-        tech_agent = self.agents["tech"]
-        tech_prompt = feasibility_review_prompt()
-        await self._emit_thinking("tech", "Reviewing technical feasibility")
-        tech_resp = await tech_agent.query_without_rag(
-            tech_prompt, context=self.state.get_context_dict(),
-        )
-        await self._emit_response("tech", tech_resp.content)
-        self.state.add_message(
-            agent=tech_resp.agent, role=tech_resp.role,
-            content=tech_resp.content, phase=Phase.PROPOSAL,
-            citations=tech_resp.citations,
-        )
-        p = extract_proposal_from_response(tech_resp.content, tech_resp.agent)
-        if p:
-            proposals.append(p)
-
-        # Finance Agent — budget review (sees everything so far via conversation)
-        finance_agent = self.agents["finance"]
+        proposals = self.state.pending_proposals
         proposals_text = "\n\n".join(
             f"- {pr.title} | Cost: {pr.estimated_cost} | Category: {pr.category}"
             for pr in proposals
         ) or "(No spending proposals yet.)"
-        finance_prompt = budget_review_prompt(proposals_text, self.state.budget.remaining)
-        await self._emit_thinking("finance", "Reviewing budget allocation")
-        finance_resp = await finance_agent.query_without_rag(
-            finance_prompt, context=self.state.get_context_dict(),
-        )
-        await self._emit_response("finance", finance_resp.content)
-        self.state.add_message(
-            agent=finance_resp.agent, role=finance_resp.role,
-            content=finance_resp.content, phase=Phase.PROPOSAL,
-            citations=finance_resp.citations,
-        )
-        vote = extract_vote_from_response(finance_resp.content, finance_resp.agent)
-        if vote:
-            for pr in proposals:
-                pr.votes.append(vote)
 
-        # Risk Agent — risk review (sees everything so far via conversation)
-        risk_agent = self.agents["risk"]
-        risk_prompt = risk_review_prompt(proposals_text, self.state.startup_idea)
-        await self._emit_thinking("risk", "Assessing risks and mitigation strategies")
-        risk_resp = await risk_agent.query_without_rag(
-            risk_prompt, context=self.state.get_context_dict(),
-        )
-        await self._emit_response("risk", risk_resp.content)
-        self.state.add_message(
-            agent=risk_resp.agent, role=risk_resp.role,
-            content=risk_resp.content, phase=Phase.PROPOSAL,
-            citations=risk_resp.citations,
-        )
-        vote = extract_vote_from_response(risk_resp.content, risk_resp.agent)
-        if vote:
-            for pr in proposals:
-                pr.votes.append(vote)
+        async def _finance():
+            agent = self.agents["finance"]
+            prompt = budget_review_prompt(proposals_text, self.state.budget.remaining)
+            context = self.state.get_context_dict()
+            await self._emit_thinking("finance", "Reviewing budget allocation")
+            resp = await agent.query_without_rag(prompt, context=context)
+            await self._emit_response("finance", resp.content)
+            self.state.add_message(
+                agent=resp.agent, role=resp.role,
+                content=resp.content, phase=Phase.PROPOSAL,
+                citations=resp.citations,
+            )
+            return resp
 
-        self.state.pending_proposals = proposals
+        async def _risk():
+            agent = self.agents["risk"]
+            prompt = risk_review_prompt(proposals_text, self.state.startup_idea)
+            context = self.state.get_context_dict()
+            await self._emit_thinking("risk", "Assessing risks and mitigation strategies")
+            resp = await agent.query_without_rag(prompt, context=context)
+            await self._emit_response("risk", resp.content)
+            self.state.add_message(
+                agent=resp.agent, role=resp.role,
+                content=resp.content, phase=Phase.PROPOSAL,
+                citations=resp.citations,
+            )
+            return resp
+
+        finance_resp, risk_resp = await asyncio.gather(_finance(), _risk())
+
+        # Extract votes and attach to proposals
+        for resp in (finance_resp, risk_resp):
+            vote = extract_vote_from_response(resp.content, resp.agent)
+            if vote:
+                for pr in proposals:
+                    pr.votes.append(vote)
+
         self.state.completed_phases.append(str(Phase.PROPOSAL))
         self.state.phase = Phase.DEBATE
         await self.event_bus.emit(PHASE_CHANGED, {"phase": str(Phase.DEBATE)})

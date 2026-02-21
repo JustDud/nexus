@@ -25,7 +25,7 @@ End with a clear **Recommendation**: proceed, pivot, or abandon — and why."""
 
 def mvp_proposal_prompt(startup_idea: str) -> str:
     return f"""\
-Based on the market research in the conversation above, propose a Minimum Viable Product for this startup.
+Propose a Minimum Viable Product for this startup.
 
 Startup idea: {startup_idea}
 
@@ -43,9 +43,11 @@ CATEGORY: <engineering | marketing | infrastructure | operations>
 REASON: <why this spend is necessary>"""
 
 
-def feasibility_review_prompt() -> str:
-    return """\
-Evaluate the technical feasibility of the MVP proposal in the conversation above.
+def feasibility_review_prompt(startup_idea: str) -> str:
+    return f"""\
+Evaluate the technical feasibility of building this startup.
+
+Startup idea: {startup_idea}
 
 Provide:
 1. **Complexity assessment** — rate each proposed feature as low / medium / high complexity

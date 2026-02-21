@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
 
     # Model settings
-    default_model: str = "claude-sonnet-4-6"
+    default_model: str = "claude-haiku-4-5-20251001"
     embedding_provider: str = "gemini"  # openai | gemini
     embedding_model: str = "gemini-embedding-001"
     embedding_dimensions: int = 768
