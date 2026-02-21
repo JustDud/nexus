@@ -60,7 +60,17 @@ export function useMockSimulation(enabled: boolean) {
   }
 
   useEffect(() => {
-    if (!enabled || startedRef.current) return
+    if (!enabled) {
+      // WebSocket connected — kill mock immediately so events don't fight
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+      startedRef.current = false
+      return
+    }
+
+    if (startedRef.current) return
     startedRef.current = true
 
     const budget = state.totalBudget

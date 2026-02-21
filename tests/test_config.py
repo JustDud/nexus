@@ -106,7 +106,7 @@ class TestSettingsClass:
     def test_settings_from_env_vars(self):
         from config import Settings
         old_ant = os.environ.get("ANTHROPIC_API_KEY")
-        old_oai = os.environ.get("GEMINI_API_KEY")
+        old_gemini = os.environ.get("GEMINI_API_KEY")
         os.environ["ANTHROPIC_API_KEY"] = "sk-ant-test123"
         os.environ["GEMINI_API_KEY"] = "gemini-test456"
         os.environ["CHUNK_SIZE"] = "256"
@@ -116,11 +116,10 @@ class TestSettingsClass:
             assert s.gemini_api_key == "gemini-test456"
             assert s.chunk_size == 256
         finally:
-            # Restore original values (set by conftest)
             if old_ant is not None:
                 os.environ["ANTHROPIC_API_KEY"] = old_ant
-            if old_oai is not None:
-                os.environ["GEMINI_API_KEY"] = old_oai
+            if old_gemini is not None:
+                os.environ["GEMINI_API_KEY"] = old_gemini
             os.environ.pop("CHUNK_SIZE", None)
 
 
@@ -139,7 +138,7 @@ class TestGetSettings:
         # Clear the cache first
         get_settings.cache_clear()
         old_ant = os.environ.get("ANTHROPIC_API_KEY")
-        old_oai = os.environ.get("GEMINI_API_KEY")
+        old_gemini = os.environ.get("GEMINI_API_KEY")
         os.environ["ANTHROPIC_API_KEY"] = "test-key"
         os.environ["GEMINI_API_KEY"] = "test-key"
         try:
@@ -147,9 +146,8 @@ class TestGetSettings:
             assert isinstance(s, Settings)
             assert s.anthropic_api_key == "test-key"
         finally:
-            # Restore originals and re-cache with them
             if old_ant is not None:
                 os.environ["ANTHROPIC_API_KEY"] = old_ant
-            if old_oai is not None:
-                os.environ["GEMINI_API_KEY"] = old_oai
+            if old_gemini is not None:
+                os.environ["GEMINI_API_KEY"] = old_gemini
             get_settings.cache_clear()
