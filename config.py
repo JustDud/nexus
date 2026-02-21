@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     chroma_persist_dir: str = "./chroma_data"
     chroma_collection_name: str = "ghost_founder"
 
+    # Stripe
+    stripe_secret_key: str | None = None
+    stripe_publishable_key: str | None = None
+    stripe_webhook_secret: str | None = None
+    stripe_webhook_tolerance_seconds: int = 300
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

@@ -24,6 +24,10 @@ class TestSettingsClass:
             "retrieval_top_k",
             "chroma_persist_dir",
             "chroma_collection_name",
+            "stripe_secret_key",
+            "stripe_publishable_key",
+            "stripe_webhook_secret",
+            "stripe_webhook_tolerance_seconds",
         ]
         for field_name in expected:
             assert field_name in fields, f"Missing field: {field_name}"
@@ -40,6 +44,10 @@ class TestSettingsClass:
         assert s.retrieval_top_k == 5
         assert s.chroma_persist_dir == "./chroma_data"
         assert s.chroma_collection_name == "ghost_founder"
+        assert s.stripe_secret_key is None
+        assert s.stripe_publishable_key is None
+        assert s.stripe_webhook_secret is None
+        assert s.stripe_webhook_tolerance_seconds == 300
 
     def test_settings_override(self):
         from config import Settings
