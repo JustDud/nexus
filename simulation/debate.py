@@ -122,14 +122,14 @@ class DebateManager:
                     elif all(v.stance == "oppose" for v in p.votes):
                         p.status = ProposalStatus.REJECTED
                     else:
-                        p.status = ProposalStatus.PROPOSED  # escalate
+                        p.status = ProposalStatus.ESCALATED
                         await self.event_bus.emit(PROPOSAL_ESCALATED, {
                             "proposal_id": p.id,
                             "title": p.title,
                         })
                 else:
                     # Mixed votes — escalate to CEO
-                    p.status = ProposalStatus.PROPOSED
+                    p.status = ProposalStatus.ESCALATED
                     await self.event_bus.emit(PROPOSAL_ESCALATED, {
                         "proposal_id": p.id,
                         "title": p.title,

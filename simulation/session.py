@@ -1,8 +1,9 @@
 """
 In-memory simulation session management.
 
-Each session represents one simulation run and holds the idea, budget,
-status, event bus, and a reference to the simulation state.
+Each session holds an EventBus, SimulationState, and SimulationOrchestrator
+wired together. The orchestrator drives the simulation; the session is the
+handle the API layer uses to interact with it.
 """
 
 import uuid
@@ -10,8 +11,10 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 from simulation.events import EventBus
+from simulation.orchestrator import SimulationOrchestrator
+from simulation.state import SimulationState
 
-# In-memory session store (same pattern as _retriever in api/routes.py)
+# In-memory session store
 _sessions: dict[str, "Session"] = {}
 
 
@@ -23,12 +26,13 @@ class Session:
     status: str = "pending"  # "pending" | "running" | "paused" | "completed" | "failed"
     event_bus: EventBus = field(default_factory=EventBus)
     created_at: str = ""
-    # Placeholder for Dima's SimulationState — duck-typed with hasattr checks
-    state: object = None
+    state: SimulationState = field(default_factory=SimulationState)
+    orchestrator: SimulationOrchestrator | None = None
 
     def __post_init__(self):
         if not self.created_at:
             self.created_at = datetime.now(timezone.utc).isoformat()
+        self.orchestrator = SimulationOrchestrator(state=self.state, event_bus=self.event_bus)
 
 
 def create_session(idea: str, budget: float) -> Session:

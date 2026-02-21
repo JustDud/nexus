@@ -32,6 +32,29 @@ class StartSimulationRequest(BaseModel):
 class DecisionRequest(BaseModel):
     proposal_id: str = Field(..., min_length=1)
     approved: bool
+    note: str = ""
+
+
+# ---------------------------------------------------------------------------
+# Background runner
+# ---------------------------------------------------------------------------
+
+
+async def _run_simulation(session):
+    """Run the orchestrator in the background, updating session status."""
+    try:
+        await session.orchestrator.start(session.idea, session.budget)
+        await session.orchestrator.run_until_decision()
+
+        if session.state.phase.value == "DECISION":
+            session.status = "paused"
+        elif session.state.phase.value in ("COMPLETED", "FAILED"):
+            session.status = session.state.phase.value.lower()
+    except Exception as e:
+        session.status = "failed"
+        await session.event_bus.emit(
+            SimulationEvent(event_type=EventType.ERROR, data={"error": str(e)})
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -45,6 +68,7 @@ async def start_simulation(req: StartSimulationRequest):
     session = create_session(idea=req.idea, budget=req.budget)
     session.status = "running"
 
+    # Record the start event immediately (before background task)
     await session.event_bus.emit(
         SimulationEvent(
             event_type=EventType.SIMULATION_STARTED,
@@ -52,8 +76,8 @@ async def start_simulation(req: StartSimulationRequest):
         )
     )
 
-    # TODO: When Dima's orchestrator is ready, launch it here:
-    # asyncio.create_task(orchestrator.run_simulation(session))
+    # Launch the orchestrator as a background task
+    asyncio.create_task(_run_simulation(session))
 
     return {
         "session_id": session.session_id,
@@ -94,7 +118,12 @@ async def get_session_detail(session_id: str):
         "budget": session.budget,
         "status": session.status,
         "created_at": session.created_at,
+        "phase": str(session.state.phase),
+        "budget_remaining": session.state.budget.remaining,
+        "total_spent": session.state.budget.total_spent,
         "event_count": len(session.event_bus.history),
+        "pending_proposals": [p.to_decision_card() for p in session.state.pending_proposals],
+        "conversation_length": len(session.state.conversation),
     }
 
 
@@ -116,7 +145,6 @@ async def stream_events(session_id: str):
                     if event.event_type == EventType.SIMULATION_COMPLETED:
                         break
                 except asyncio.TimeoutError:
-                    # Keepalive comment to prevent proxy/LB timeouts
                     yield ": keepalive\n\n"
         finally:
             session.event_bus.unsubscribe(sub_id)
@@ -134,7 +162,7 @@ async def stream_events(session_id: str):
 
 @sim_router.post("/simulation/sessions/{session_id}/decide")
 async def make_decision(session_id: str, req: DecisionRequest):
-    """Record a CEO decision on a proposal. Session must be paused."""
+    """CEO approves or rejects a proposal. Resumes simulation if all decisions resolved."""
     session = get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
@@ -144,24 +172,40 @@ async def make_decision(session_id: str, req: DecisionRequest):
             detail=f"Session is '{session.status}', must be 'paused' to make decisions",
         )
 
-    await session.event_bus.emit(
-        SimulationEvent(
-            event_type=EventType.DECISION_MADE,
-            data={
-                "proposal_id": req.proposal_id,
-                "approved": req.approved,
-            },
-        )
+    await session.orchestrator.resolve_ceo_decision(
+        proposal_id=req.proposal_id,
+        approved=req.approved,
+        note=req.note,
     )
 
-    # TODO: When Dima's orchestrator is ready, resume simulation here.
+    # If no more pending proposals, resume simulation
+    if not session.state.pending_proposals:
+        session.status = "running"
+        asyncio.create_task(_run_simulation_resume(session))
 
     return {
         "session_id": session_id,
         "proposal_id": req.proposal_id,
         "approved": req.approved,
-        "status": "decision_recorded",
+        "status": session.status,
+        "budget_remaining": session.state.budget.remaining,
     }
+
+
+async def _run_simulation_resume(session):
+    """Resume orchestrator after CEO decisions, updating session status."""
+    try:
+        await session.orchestrator.run_until_decision()
+
+        if session.state.phase.value == "DECISION":
+            session.status = "paused"
+        elif session.state.phase.value in ("COMPLETED", "FAILED"):
+            session.status = session.state.phase.value.lower()
+    except Exception as e:
+        session.status = "failed"
+        await session.event_bus.emit(
+            SimulationEvent(event_type=EventType.ERROR, data={"error": str(e)})
+        )
 
 
 @sim_router.get("/simulation/sessions/{session_id}/report")

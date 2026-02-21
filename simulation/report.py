@@ -55,10 +55,8 @@ def generate_report(session: Session) -> SimulationReport:
                 }
             )
 
-    # Determine final budget: from state if available, else from session
-    final_budget = session.budget
-    if session.state is not None and hasattr(session.state, "budget"):
-        final_budget = session.state.budget
+    # Pull final budget from SimulationState
+    final_budget = session.state.budget.remaining
 
     approved = sum(1 for d in decisions if d.get("approved"))
     rejected = len(decisions) - approved

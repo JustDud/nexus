@@ -1,5 +1,7 @@
 """Tests for api/simulation_routes.py — all 6 simulation endpoints."""
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -18,6 +20,13 @@ def clear_sessions():
     _sessions.clear()
     yield
     _sessions.clear()
+
+
+@pytest.fixture(autouse=True)
+def _no_orchestrator():
+    """Prevent the orchestrator from running during API tests."""
+    with patch("api.simulation_routes._run_simulation", new_callable=AsyncMock):
+        yield
 
 
 @pytest.fixture
@@ -147,7 +156,7 @@ class TestGetSession:
         resp = client.get(f"/api/simulation/sessions/{started_session}")
         data = resp.json()
         assert "event_count" in data
-        # Should have 1 event (SIMULATION_STARTED) from the start endpoint
+        # Orchestrator is mocked in tests, so no events emitted yet
         assert data["event_count"] == 1
 
 
@@ -189,7 +198,7 @@ class TestDecision:
         data = resp.json()
         assert data["proposal_id"] == "prop123"
         assert data["approved"] is True
-        assert data["status"] == "decision_recorded"
+        assert data["status"] == "running"
 
     def test_decide_reject(self, client, started_session):
         session = get_session(started_session)

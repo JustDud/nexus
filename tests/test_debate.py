@@ -194,8 +194,8 @@ class TestMaxRoundsEscalation:
 
         # Should have run 2 rounds (max), no consensus
         assert len(results) == 1
-        # Mixed votes → escalated back to PROPOSED
-        assert results[0].status == ProposalStatus.PROPOSED
+        # Mixed votes → escalated to CEO
+        assert results[0].status == ProposalStatus.ESCALATED
 
     @pytest.mark.asyncio
     async def test_early_stop_on_consensus(self):

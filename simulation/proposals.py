@@ -13,6 +13,7 @@ class ProposalStatus(StrEnum):
     DEBATING = "debating"
     APPROVED = "approved"
     REJECTED = "rejected"
+    ESCALATED = "escalated"
     EXECUTED = "executed"
 
 
