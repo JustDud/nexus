@@ -92,7 +92,7 @@ class SimulationState:
     phase: Phase = Phase.SETUP
     conversation: list[AgentMessage] = field(default_factory=list)
     current_round: int = 0
-    max_debate_rounds: int = 3
+    max_debate_rounds: int = 2
     pending_proposals: list[Any] = field(default_factory=list)
     decided_proposals: list[Any] = field(default_factory=list)
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

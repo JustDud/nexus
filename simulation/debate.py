@@ -24,6 +24,15 @@ from simulation.state import Phase, SimulationState
 # Fixed turn order for each debate round
 TURN_ORDER = ["product", "tech", "finance", "risk", "market"]
 
+# Map backend agent keys to frontend agent IDs
+_FRONTEND_ID = {
+    "market": "product",
+    "product": "product",
+    "tech": "tech",
+    "finance": "finance",
+    "risk": "ops",
+}
+
 
 class DebateManager:
     """Runs a structured debate between agents on proposals."""
@@ -55,10 +64,13 @@ class DebateManager:
             for agent_key in TURN_ORDER:
                 agent = self.agents[agent_key]
                 agent_name = agent.config.name
+                fid = _FRONTEND_ID.get(agent_key, "tech")
 
                 await self.event_bus.emit(AGENT_THINKING, {
-                    "agent": agent_name,
+                    "agent_id": fid,
+                    "agent_name": agent_name,
                     "round": round_num,
+                    "task": f"Debating round {round_num}",
                 })
 
                 # Full conversation (all phases) is included via context dict.
@@ -79,7 +91,8 @@ class DebateManager:
                 )
 
                 await self.event_bus.emit(AGENT_SPEAKING, {
-                    "agent": agent_name,
+                    "agent_id": fid,
+                    "agent_name": agent_name,
                     "round": round_num,
                     "content": response.content,
                 })
@@ -98,7 +111,8 @@ class DebateManager:
                         p.votes = [v for v in p.votes if v.agent != agent_name]
                         p.votes.append(vote)
                     await self.event_bus.emit(VOTE_CAST, {
-                        "agent": agent_name,
+                        "agent_id": fid,
+                        "agent_name": agent_name,
                         "stance": vote.stance,
                         "round": round_num,
                     })

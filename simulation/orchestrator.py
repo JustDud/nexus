@@ -2,18 +2,27 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from agents.base import BaseAgent
 from agents.definitions import get_agent
 from rag.retriever import Retriever
 from simulation.debate import DebateManager
+import logging
+
 from simulation.events import (
+    AGENT_THINKING,
     BUDGET_UPDATED,
+    EventType,
     PHASE_CHANGED,
     PROPOSAL_EXECUTED,
     SIMULATION_COMPLETED,
     SIMULATION_STARTED,
     EventBus,
+    SimulationEvent,
 )
+
+logger = logging.getLogger(__name__)
 from simulation.prompts import (
     budget_review_prompt,
     feasibility_review_prompt,
@@ -31,6 +40,15 @@ from simulation.state import Phase, SimulationState
 
 _BUDGET_WARNING_THRESHOLD = 0.20  # 20% remaining triggers warning
 
+# Map backend agent names to frontend agent IDs
+_FRONTEND_ID = {
+    "market": "product",
+    "product": "product",
+    "tech": "tech",
+    "finance": "finance",
+    "risk": "ops",
+}
+
 
 class SimulationOrchestrator:
     """Drives the simulation through research → proposal → debate → decision → execution."""
@@ -43,6 +61,22 @@ class SimulationOrchestrator:
             name: get_agent(name, retriever=self._retriever)
             for name in ("market", "product", "tech", "finance", "risk")
         }
+
+    async def _emit_thinking(self, agent_name: str, task: str) -> None:
+        """Emit AGENT_THINKING so the frontend shows activity."""
+        fid = _FRONTEND_ID.get(agent_name, "tech")
+        await self.event_bus.emit(SimulationEvent(
+            event_type=EventType.AGENT_THINKING,
+            data={"agent_id": fid, "agent_name": agent_name.title(), "task": task},
+        ))
+
+    async def _emit_response(self, agent_name: str, content: str) -> None:
+        """Emit AGENT_RESPONSE so the frontend sees the result."""
+        fid = _FRONTEND_ID.get(agent_name, "tech")
+        await self.event_bus.emit(SimulationEvent(
+            event_type=EventType.AGENT_RESPONSE,
+            data={"agent_id": fid, "agent_name": agent_name.title(), "content": content},
+        ))
 
     async def start(self, idea: str, budget: float) -> None:
         """Initialize the simulation and emit startup events."""
@@ -90,7 +124,9 @@ class SimulationOrchestrator:
         prompt = research_prompt(self.state.startup_idea)
         context = self.state.get_context_dict()
 
+        await self._emit_thinking("market", "Researching market opportunity")
         response = await agent.query(prompt, context=context)
+        await self._emit_response("market", response.content)
 
         self.state.add_message(
             agent=response.agent,
@@ -116,9 +152,11 @@ class SimulationOrchestrator:
         # Product Agent — MVP proposal (sees research via conversation)
         product_agent = self.agents["product"]
         product_prompt = mvp_proposal_prompt(self.state.startup_idea)
+        await self._emit_thinking("product", "Designing MVP proposal")
         product_resp = await product_agent.query_without_rag(
             product_prompt, context=self.state.get_context_dict(),
         )
+        await self._emit_response("product", product_resp.content)
         self.state.add_message(
             agent=product_resp.agent, role=product_resp.role,
             content=product_resp.content, phase=Phase.PROPOSAL,
@@ -131,9 +169,11 @@ class SimulationOrchestrator:
         # Tech Agent — feasibility review (sees research + product via conversation)
         tech_agent = self.agents["tech"]
         tech_prompt = feasibility_review_prompt()
+        await self._emit_thinking("tech", "Reviewing technical feasibility")
         tech_resp = await tech_agent.query_without_rag(
             tech_prompt, context=self.state.get_context_dict(),
         )
+        await self._emit_response("tech", tech_resp.content)
         self.state.add_message(
             agent=tech_resp.agent, role=tech_resp.role,
             content=tech_resp.content, phase=Phase.PROPOSAL,
@@ -150,9 +190,11 @@ class SimulationOrchestrator:
             for pr in proposals
         ) or "(No spending proposals yet.)"
         finance_prompt = budget_review_prompt(proposals_text, self.state.budget.remaining)
+        await self._emit_thinking("finance", "Reviewing budget allocation")
         finance_resp = await finance_agent.query_without_rag(
             finance_prompt, context=self.state.get_context_dict(),
         )
+        await self._emit_response("finance", finance_resp.content)
         self.state.add_message(
             agent=finance_resp.agent, role=finance_resp.role,
             content=finance_resp.content, phase=Phase.PROPOSAL,
@@ -166,9 +208,11 @@ class SimulationOrchestrator:
         # Risk Agent — risk review (sees everything so far via conversation)
         risk_agent = self.agents["risk"]
         risk_prompt = risk_review_prompt(proposals_text, self.state.startup_idea)
+        await self._emit_thinking("risk", "Assessing risks and mitigation strategies")
         risk_resp = await risk_agent.query_without_rag(
             risk_prompt, context=self.state.get_context_dict(),
         )
+        await self._emit_response("risk", risk_resp.content)
         self.state.add_message(
             agent=risk_resp.agent, role=risk_resp.role,
             content=risk_resp.content, phase=Phase.PROPOSAL,
@@ -217,11 +261,6 @@ class SimulationOrchestrator:
         self.state.completed_phases.append(str(Phase.EXECUTION))
         self.state.phase = Phase.COMPLETED
         await self.event_bus.emit(PHASE_CHANGED, {"phase": str(Phase.COMPLETED)})
-        await self.event_bus.emit(SIMULATION_COMPLETED, {
-            "simulation_id": self.state.id,
-            "total_spent": self.state.budget.total_spent,
-            "remaining": self.state.budget.remaining,
-        })
 
     # ------------------------------------------------------------------
     # CEO decision resolution
@@ -251,11 +290,6 @@ class SimulationOrchestrator:
         self.state.pending_proposals = [
             p for p in self.state.pending_proposals if p.id != proposal_id
         ]
-
-        # If no more pending, move to execution
-        if not self.state.pending_proposals:
-            self.state.phase = Phase.EXECUTION
-            await self.event_bus.emit(PHASE_CHANGED, {"phase": str(Phase.EXECUTION)})
 
     # ------------------------------------------------------------------
     # Helpers
@@ -309,21 +343,92 @@ class SimulationOrchestrator:
 async def run_simulation(session) -> None:
     """Run the full simulation lifecycle on a session.
 
-    Starts the orchestrator, runs until a decision is needed or the
-    simulation completes, and updates session status accordingly.
+    Loops through phases: RESEARCH → PROPOSAL → DEBATE → DECISION → EXECUTION.
+    When DECISION is reached, emits DECISION_NEEDED events one at a time and
+    waits for CEO input before continuing to EXECUTION.
     """
-    from simulation.events import EventType, SimulationEvent
-
     try:
         await session.orchestrator.start(session.idea, session.budget)
-        await session.orchestrator.run_until_decision()
 
-        if session.state.phase.value == "DECISION":
-            session.status = "paused"
-        elif session.state.phase.value in ("COMPLETED", "FAILED"):
-            session.status = session.state.phase.value.lower()
+        while True:
+            await session.orchestrator.run_until_decision()
+
+            if session.state.phase == Phase.DECISION:
+                session.status = "paused"
+
+                # Present each escalated proposal to the CEO one at a time
+                while session.state.pending_proposals:
+                    proposal = session.state.pending_proposals[0]
+                    cost_str = proposal.estimated_cost.replace("$", "").replace(",", "")
+                    try:
+                        cost = float(cost_str)
+                    except ValueError:
+                        cost = 0.0
+
+                    session._current_proposal_id = proposal.id
+                    await session.event_bus.emit(SimulationEvent(
+                        event_type=EventType.DECISION_NEEDED,
+                        data={
+                            "proposal_id": proposal.id,
+                            "title": proposal.title,
+                            "cost": cost,
+                            "description": proposal.description,
+                            "agent_id": "finance",
+                            "agent_name": proposal.proposed_by.title(),
+                        },
+                    ))
+
+                    # Poll until this proposal is resolved or simulation stopped
+                    while any(p.id == proposal.id for p in session.state.pending_proposals):
+                        await asyncio.sleep(0.3)
+                        if session.status == "stopping":
+                            break
+
+                    if session.status == "stopping":
+                        break
+
+                    # Notify frontend the decision was made
+                    target = next(
+                        (p for p in session.state.decided_proposals if p.id == proposal.id),
+                        None,
+                    )
+                    await session.event_bus.emit(SimulationEvent(
+                        event_type=EventType.DECISION_MADE,
+                        data={
+                            "proposal_id": proposal.id,
+                            "approved": target.status == ProposalStatus.APPROVED if target else False,
+                        },
+                    ))
+
+                if session.status == "stopping":
+                    session.status = "failed"
+                    break
+
+                # All decisions resolved — proceed to execution
+                session.status = "running"
+                session.state.phase = Phase.EXECUTION
+                await session.event_bus.emit(PHASE_CHANGED, {"phase": str(Phase.EXECUTION)})
+
+            elif session.state.phase in (Phase.COMPLETED, Phase.FAILED):
+                session.status = session.state.phase.value.lower()
+                break
+            else:
+                break
+
     except Exception as e:
+        logger.exception("Simulation failed: %s", e)
         session.status = "failed"
-        await session.event_bus.emit(
-            SimulationEvent(event_type=EventType.ERROR, data={"error": str(e)})
-        )
+        await session.event_bus.emit(SimulationEvent(
+            event_type=EventType.ERROR,
+            data={"error": str(e), "fatal": True},
+        ))
+    finally:
+        # Always emit SIMULATION_COMPLETED so _send_loop exits cleanly
+        await session.event_bus.emit(SimulationEvent(
+            event_type=EventType.SIMULATION_COMPLETED,
+            data={
+                "status": session.status or "completed",
+                "total_spent": session.state.budget.total_spent,
+                "remaining": session.state.budget.remaining,
+            },
+        ))

@@ -118,4 +118,4 @@ class TestSimulationState:
 
     def test_max_debate_rounds_default(self):
         state = SimulationState()
-        assert state.max_debate_rounds == 3
+        assert state.max_debate_rounds == 2

@@ -49,21 +49,66 @@ def translate_event(event: SimulationEvent) -> list[dict] | None:
             },
         ]
 
-    if et == EventType.BUDGET_UPDATED:
+    if et == EventType.AGENT_SPEAKING:
+        agent_id = d.get("agent_id", "tech")
+        content = d.get("content", "")
+        sentences = [s.strip() for s in content.split(".") if s.strip()][:3]
+        summary = content[:120] + "..." if len(content) > 120 else content
         return [
             {
+                "type": "agent_thinking",
+                "agentId": agent_id,
+                "fragments": sentences if sentences else ["Debating..."],
+            },
+            {
+                "type": "agent_acting",
+                "agentId": agent_id,
+                "action": summary,
+            },
+        ]
+
+    if et == EventType.VOTE_CAST:
+        return [{
+            "type": "agent_acting",
+            "agentId": d.get("agent_id", "tech"),
+            "action": f"Voted: {d.get('stance', 'unknown').upper()}",
+        }]
+
+    if et == EventType.BUDGET_UPDATED:
+        msgs = []
+        # Only send transaction if there's a specific expense described
+        if d.get("description"):
+            msgs.append({
                 "type": "transaction",
                 "agentId": d.get("agent_id", "finance"),
                 "description": d.get("description", "Expense"),
                 "amount": d.get("amount", 0),
                 "status": "approved" if d.get("approved") else "blocked",
-            },
-            {
-                "type": "budget_update",
-                "spent": d.get("spent", 0),
-                "total": d.get("total", 0),
-            },
-        ]
+            })
+        msgs.append({
+            "type": "budget_update",
+            "spent": d.get("total_spent", d.get("spent", 0)),
+            "total": d.get("initial", d.get("total", 0)),
+            "remaining": d.get("remaining", 0),
+        })
+        return msgs
+
+    if et == EventType.PHASE_CHANGED:
+        # Map orchestrator phases to frontend stages
+        phase = d.get("phase", "").upper()
+        phase_to_stage = {
+            "RESEARCH": "researching",
+            "PROPOSAL": "planning",
+            "DEBATE": "planning",
+            "DECISION": "planning",
+            "EXECUTION": "building",
+            "COMPLETED": "complete",
+            "FAILED": "complete",
+        }
+        stage = phase_to_stage.get(phase)
+        if stage:
+            return [{"type": "stage_change", "stage": stage}]
+        return None
 
     if et == EventType.PROPOSAL_CREATED:
         return [{
@@ -193,10 +238,13 @@ async def _recv_loop(ws: WebSocket, session) -> None:
             raw = await ws.receive_text()
             data = json.loads(raw)
             if data.get("type") == "decision":
-                session.resolve_decision(
-                    approved=data.get("approved", False),
-                    reason=data.get("reason", ""),
-                )
+                proposal_id = getattr(session, "_current_proposal_id", None)
+                if proposal_id and session.orchestrator:
+                    await session.orchestrator.resolve_ceo_decision(
+                        proposal_id=proposal_id,
+                        approved=data.get("approved", False),
+                        note=data.get("reason", ""),
+                    )
             elif data.get("type") == "stop_simulation":
                 session.status = "stopping"
         except (WebSocketDisconnect, asyncio.CancelledError):
@@ -223,11 +271,7 @@ async def websocket_simulation(ws: WebSocket):
         session = create_session(idea=idea, budget=budget)
         session.status = "running"
 
-        await session.event_bus.emit(SimulationEvent(
-            event_type=EventType.SIMULATION_STARTED,
-            data={"idea": idea, "budget": budget},
-        ))
-
+        # Subscribe BEFORE starting simulation so we catch all events
         sub_id, queue = session.event_bus.subscribe()
 
         # Start simulation as a background task
