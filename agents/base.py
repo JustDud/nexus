@@ -109,6 +109,20 @@ class BaseAgent:
         # 4 — Parse response
         text_parts = []
         citations = []
+        retrieval_citations = []
+
+        for chunk in chunks:
+            retrieval_citations.append(
+                {
+                    "source_file": chunk.get("source_file"),
+                    "source_url": chunk.get("source_url"),
+                    "title": chunk.get("title"),
+                    "topic": chunk.get("topic"),
+                    "fetched_at": chunk.get("fetched_at"),
+                    "chunk_index": chunk.get("chunk_index"),
+                    "score": chunk.get("score"),
+                }
+            )
 
         for block in response.content:
             if block.type == "text":
@@ -127,7 +141,7 @@ class BaseAgent:
             agent=self.config.name,
             role=self.config.role,
             content="\n".join(text_parts),
-            citations=citations,
+            citations=citations + retrieval_citations,
             sources_used=len(chunks),
         )
 

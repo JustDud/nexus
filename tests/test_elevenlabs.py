@@ -37,11 +37,7 @@ class TestElevenLabsRoutes:
     def test_synthesize_not_configured_returns_503(self, client, monkeypatch):
         get_settings.cache_clear()
         get_elevenlabs_service.cache_clear()
-        monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
-        monkeypatch.setattr(
-            "integrations.elevenlabs.router.get_elevenlabs_service",
-            lambda: None,
-        )
+        os.environ["ELEVENLABS_API_KEY"] = ""
 
         resp = client.post("/api/voice/elevenlabs/synthesize", json={"text": "Hello world"})
         assert resp.status_code == 503

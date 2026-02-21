@@ -10,6 +10,7 @@ from api.routes import router
 from api.simulation_routes import sim_router
 from api.ws_routes import ws_router
 from integrations.elevenlabs.router import elevenlabs_router
+from api.ingestion_routes import ingestion_router
 from integrations.stripe.router import stripe_router
 
 app = FastAPI(
@@ -30,6 +31,7 @@ app.include_router(router, prefix="/api")
 app.include_router(sim_router, prefix="/api")
 app.include_router(stripe_router, prefix="/api")
 app.include_router(elevenlabs_router, prefix="/api")
+app.include_router(ingestion_router, prefix="/api")
 app.include_router(ws_router)
 
 

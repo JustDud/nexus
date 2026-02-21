@@ -9,15 +9,16 @@ from agents.definitions import AGENT_CONFIGS, get_agent
 
 
 class TestAgentConfig:
-    def test_all_five_agents_defined(self):
-        expected = {"market", "product", "tech", "finance", "risk"}
+    def test_all_agents_defined(self):
+        expected = {"advisor", "market", "product", "tech", "finance", "risk"}
         assert set(AGENT_CONFIGS.keys()) == expected
 
     def test_each_agent_has_required_fields(self):
         for name, cfg in AGENT_CONFIGS.items():
             assert cfg.name, f"{name} missing name"
             assert cfg.role, f"{name} missing role"
-            assert cfg.domain, f"{name} missing domain"
+            if name != "advisor":
+                assert cfg.domain, f"{name} missing domain"
             assert cfg.system_prompt, f"{name} missing system_prompt"
             assert cfg.model, f"{name} missing model"
             assert cfg.top_k > 0, f"{name} has invalid top_k"
@@ -85,7 +86,8 @@ class TestGetAgent:
         for name in AGENT_CONFIGS:
             agent = get_agent(name)
             assert isinstance(agent, BaseAgent)
-            assert agent.config.domain == name
+            if name != "advisor":
+                assert agent.config.domain == name
 
     def test_get_invalid_agent_raises(self):
         with pytest.raises(ValueError, match="Unknown agent"):
