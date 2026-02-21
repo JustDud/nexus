@@ -1,178 +1,209 @@
-import { useRef, useMemo } from 'react'
+import { useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { MeshDistortMaterial } from '@react-three/drei'
 import * as THREE from 'three'
 import { type AgentShape as AgentShapeType, type AgentStatus } from '../../types'
 
-interface ShapeMeshProps {
-  shape: AgentShapeType
-  color: string
-  status: AgentStatus
-}
-
-function Icosahedron({ color, status }: Omit<ShapeMeshProps, 'shape'>) {
+// ── PRODUCT: Icosahedron — amber, MeshPhysicalMaterial ──
+function IcosahedronMesh({ status }: { status: AgentStatus }) {
   const meshRef = useRef<THREE.Mesh>(null)
-  const baseSpeed = status === 'thinking' ? 0.025 : status === 'acting' ? 0.05 : 0.008
-  const scale = status === 'acting' ? 1.15 : status === 'blocked' ? 0.9 : 1
+  const t       = useRef(0)
 
   useFrame((_, delta) => {
+    t.current += delta
     if (!meshRef.current) return
-    meshRef.current.rotation.x += delta * baseSpeed * 60 * 0.6
-    meshRef.current.rotation.y += delta * baseSpeed * 60
-    const targetScale = scale
-    meshRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.05)
-    if (status === 'blocked') {
-      meshRef.current.rotation.z = Math.sin(Date.now() * 0.02) * 0.15
-    }
-  })
+    const isThinking = status === 'thinking'
+    const isActing   = status === 'acting'
 
-  const emissiveIntensity = status === 'thinking' ? 0.6 : status === 'acting' ? 1.2 : 0.3
+    meshRef.current.rotation.y += delta * 0.3
+    meshRef.current.rotation.x += delta * 0.12
 
-  return (
-    <mesh ref={meshRef}>
-      <icosahedronGeometry args={[1, 1]} />
-      <meshStandardMaterial
-        color={color}
-        emissive={status === 'blocked' ? '#ffffff' : color}
-        emissiveIntensity={emissiveIntensity}
-        roughness={0.3}
-        metalness={0.6}
-        wireframe={false}
-      />
-    </mesh>
-  )
-}
+    const mat = meshRef.current.material as THREE.MeshPhysicalMaterial
+    mat.emissiveIntensity = isThinking
+      ? Math.sin(t.current * 3) * 0.3 + 0.3
+      : 0.2
 
-function TorusKnot({ color, status }: Omit<ShapeMeshProps, 'shape'>) {
-  const meshRef = useRef<THREE.Mesh>(null)
-  const speed = status === 'thinking' ? 0.04 : status === 'acting' ? 0.07 : 0.018
-
-  useFrame((state, delta) => {
-    if (!meshRef.current) return
-    meshRef.current.rotation.x += delta * speed * 60 * 0.5
-    meshRef.current.rotation.y += delta * speed * 60
-    // Glitchy flicker for tech agent
-    if (status === 'thinking' && Math.random() < 0.005) {
-      meshRef.current.visible = false
-      setTimeout(() => { if (meshRef.current) meshRef.current.visible = true }, 80)
-    }
-    if (status === 'blocked') {
-      meshRef.current.position.x = Math.sin(state.clock.elapsedTime * 30) * 0.06
+    if (isActing) {
+      const pulse = Math.sin(t.current * Math.PI * 4) * 0.1 + 1.1
+      meshRef.current.scale.setScalar(pulse)
     } else {
-      meshRef.current.position.x = 0
+      meshRef.current.scale.setScalar(1)
     }
   })
-
-  return (
-    <mesh ref={meshRef}>
-      <torusKnotGeometry args={[0.7, 0.22, 128, 16]} />
-      <meshStandardMaterial
-        color={color}
-        emissive={status === 'blocked' ? '#ffffff' : color}
-        emissiveIntensity={status === 'thinking' ? 0.7 : status === 'acting' ? 1.2 : 0.25}
-        roughness={0.15}
-        metalness={0.7}
-        wireframe={status === 'thinking'}
-      />
-    </mesh>
-  )
-}
-
-function Dodecahedron({ color, status }: Omit<ShapeMeshProps, 'shape'>) {
-  const meshRef = useRef<THREE.Mesh>(null)
-  const speed = status === 'thinking' ? 0.015 : status === 'acting' ? 0.03 : 0.006
-
-  useFrame((state, delta) => {
-    if (!meshRef.current) return
-    meshRef.current.rotation.y += delta * speed * 60
-    meshRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.4) * 0.15
-    const pulse = status === 'thinking' ? Math.sin(state.clock.elapsedTime * 4) * 0.04 + 1 : 1
-    meshRef.current.scale.setScalar(pulse)
-    if (status === 'blocked') {
-      meshRef.current.rotation.z = Math.sin(Date.now() * 0.02) * 0.2
-    }
-  })
-
-  return (
-    <mesh ref={meshRef}>
-      <dodecahedronGeometry args={[1, 0]} />
-      <meshStandardMaterial
-        color={color}
-        emissive={status === 'blocked' ? '#ffffff' : color}
-        emissiveIntensity={status === 'thinking' ? 0.5 : status === 'acting' ? 1.0 : 0.2}
-        roughness={0.4}
-        metalness={0.5}
-      />
-    </mesh>
-  )
-}
-
-function Octahedron({ color, status }: Omit<ShapeMeshProps, 'shape'>) {
-  const meshRef = useRef<THREE.Mesh>(null)
-  const speed = status === 'acting' ? 0.0 : 0.008
-  const lastBlink = useRef(0)
-
-  useFrame((state, delta) => {
-    if (!meshRef.current) return
-    // Finance: rigid, minimal motion — freezes on block
-    if (status !== 'blocked') {
-      meshRef.current.rotation.y += delta * speed * 60
-      meshRef.current.rotation.x += delta * speed * 60 * 0.3
-    } else {
-      // Flash white periodically
-      if (state.clock.elapsedTime - lastBlink.current > 0.4) {
-        lastBlink.current = state.clock.elapsedTime
-      }
-      meshRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 25) * 0.08
-    }
-  })
-
-  return (
-    <mesh ref={meshRef}>
-      <octahedronGeometry args={[1.1, 0]} />
-      <meshStandardMaterial
-        color={status === 'blocked' ? '#ffffff' : color}
-        emissive={status === 'blocked' ? '#ef4444' : color}
-        emissiveIntensity={status === 'blocked' ? 1.5 : status === 'thinking' ? 0.4 : 0.2}
-        roughness={0.1}
-        metalness={0.9}
-      />
-    </mesh>
-  )
-}
-
-function DistortSphere({ color, status }: Omit<ShapeMeshProps, 'shape'>) {
-  // Fallback
-  return (
-    <mesh>
-      <sphereGeometry args={[1, 32, 32]} />
-      <MeshDistortMaterial
-        color={color}
-        emissive={color}
-        emissiveIntensity={0.3}
-        distort={status === 'thinking' ? 0.5 : 0.2}
-        speed={2}
-        roughness={0.4}
-      />
-    </mesh>
-  )
-}
-
-function Scene({ shape, color, status }: ShapeMeshProps) {
-  const lightColor = color
 
   return (
     <>
-      <ambientLight intensity={0.3} />
-      <pointLight position={[3, 3, 3]} intensity={1.2} color={lightColor} />
-      <pointLight position={[-3, -2, -2]} intensity={0.4} color="#3b82f6" />
-      {shape === 'icosahedron' && <Icosahedron color={color} status={status} />}
-      {shape === 'torusKnot' && <TorusKnot color={color} status={status} />}
-      {shape === 'dodecahedron' && <Dodecahedron color={color} status={status} />}
-      {shape === 'octahedron' && <Octahedron color={color} status={status} />}
-      {!['icosahedron','torusKnot','dodecahedron','octahedron'].includes(shape) && (
-        <DistortSphere color={color} status={status} />
-      )}
+      <ambientLight intensity={0.1} />
+      <pointLight color="#f59e0b" intensity={3} position={[2, 2, 2]} />
+      <mesh ref={meshRef}>
+        <icosahedronGeometry args={[1, 0]} />
+        <meshPhysicalMaterial
+          color="#f59e0b"
+          emissive={new THREE.Color('#f59e0b')}
+          emissiveIntensity={0.2}
+          metalness={0.9}
+          roughness={0.1}
+        />
+      </mesh>
+    </>
+  )
+}
+
+// ── TECH: TorusKnot — green, wireframe + emissive, glitch ──
+function TorusKnotMesh({ status }: { status: AgentStatus }) {
+  const meshRef   = useRef<THREE.Mesh>(null)
+  const t         = useRef(0)
+  const glitchAt  = useRef(0)
+  const glitching = useRef(false)
+
+  useFrame((_, delta) => {
+    t.current += delta
+    if (!meshRef.current) return
+    const isThinking = status === 'thinking'
+    const isActing   = status === 'acting'
+
+    meshRef.current.rotation.y += delta * 0.6
+    meshRef.current.rotation.x += delta * 0.3
+
+    // Glitch every ~3s: snap rotation by 0.3rad for 100ms
+    if (!glitching.current && t.current - glitchAt.current > 3 + Math.random() * 2) {
+      glitchAt.current = t.current
+      glitching.current = true
+      meshRef.current.rotation.z += (Math.random() - 0.5) * 0.6
+      setTimeout(() => { glitching.current = false }, 100)
+    }
+
+    const mat = meshRef.current.material as THREE.MeshStandardMaterial
+    mat.emissiveIntensity = isThinking
+      ? Math.sin(t.current * 3) * 0.3 + 0.3
+      : 0.5
+
+    if (isActing) {
+      const pulse = Math.sin(t.current * Math.PI * 4) * 0.1 + 1.1
+      meshRef.current.scale.setScalar(pulse)
+    } else {
+      meshRef.current.scale.setScalar(1)
+    }
+  })
+
+  return (
+    <>
+      <ambientLight intensity={0.1} />
+      <pointLight color="#22c55e" intensity={3} position={[2, 2, 2]} />
+      <mesh ref={meshRef}>
+        <torusKnotGeometry args={[0.6, 0.2, 128, 16]} />
+        <meshStandardMaterial
+          color="#22c55e"
+          emissive={new THREE.Color('#22c55e')}
+          emissiveIntensity={0.5}
+          wireframe={true}
+        />
+      </mesh>
+    </>
+  )
+}
+
+// ── OPS: Octahedron — purple, MeshPhysicalMaterial, all-axis rotation ──
+function OctahedronMesh({ status }: { status: AgentStatus }) {
+  const meshRef = useRef<THREE.Mesh>(null)
+  const t       = useRef(0)
+
+  useFrame((_, delta) => {
+    t.current += delta
+    if (!meshRef.current) return
+    const isThinking = status === 'thinking'
+    const isActing   = status === 'acting'
+
+    meshRef.current.rotation.x += delta * 0.24
+    meshRef.current.rotation.y += delta * 0.36
+    meshRef.current.rotation.z += delta * 0.12
+
+    const mat = meshRef.current.material as THREE.MeshPhysicalMaterial
+    mat.emissiveIntensity = isThinking
+      ? Math.sin(t.current * 3) * 0.3 + 0.3
+      : 0.15
+
+    if (isActing) {
+      const pulse = Math.sin(t.current * Math.PI * 4) * 0.1 + 1.1
+      meshRef.current.scale.setScalar(pulse)
+    } else {
+      meshRef.current.scale.setScalar(1)
+    }
+  })
+
+  return (
+    <>
+      <ambientLight intensity={0.1} />
+      <pointLight color="#8b5cf6" intensity={3} position={[2, 2, 2]} />
+      <mesh ref={meshRef}>
+        <octahedronGeometry args={[1, 0]} />
+        <meshPhysicalMaterial
+          color="#8b5cf6"
+          emissive={new THREE.Color('#8b5cf6')}
+          emissiveIntensity={0.15}
+          metalness={0.7}
+          roughness={0.2}
+        />
+      </mesh>
+    </>
+  )
+}
+
+// ── FINANCE: Tetrahedron — red, snapping rotation every 1.5s ──
+function TetrahedronMesh({ status }: { status: AgentStatus }) {
+  const meshRef   = useRef<THREE.Mesh>(null)
+  const t         = useRef(0)
+  const snapAngle = useRef(0)
+  const nextSnap  = useRef(1.5)
+
+  useFrame((_, delta) => {
+    t.current += delta
+    if (!meshRef.current) return
+    const isThinking = status === 'thinking'
+    const isActing   = status === 'acting'
+
+    // Snap to a new rotation every 1.5s
+    if (t.current > nextSnap.current) {
+      nextSnap.current = t.current + 1.5
+      snapAngle.current += (Math.PI / 2) * (Math.random() > 0.5 ? 1 : -1)
+    }
+    meshRef.current.rotation.y = THREE.MathUtils.lerp(
+      meshRef.current.rotation.y,
+      snapAngle.current,
+      0.12
+    )
+    meshRef.current.rotation.x = THREE.MathUtils.lerp(
+      meshRef.current.rotation.x,
+      Math.round(meshRef.current.rotation.x / (Math.PI / 2)) * (Math.PI / 2),
+      0.06
+    )
+
+    const mat = meshRef.current.material as THREE.MeshStandardMaterial
+    mat.emissiveIntensity = isThinking
+      ? Math.sin(t.current * 3) * 0.3 + 0.3
+      : 0.1
+
+    if (isActing) {
+      const pulse = Math.sin(t.current * Math.PI * 4) * 0.1 + 1.1
+      meshRef.current.scale.setScalar(pulse)
+    } else {
+      meshRef.current.scale.setScalar(1)
+    }
+  })
+
+  return (
+    <>
+      <ambientLight intensity={0.1} />
+      <pointLight color="#ef4444" intensity={3} position={[2, 2, 2]} />
+      <mesh ref={meshRef}>
+        <tetrahedronGeometry args={[1, 0]} />
+        <meshStandardMaterial
+          color="#ef4444"
+          emissive={new THREE.Color('#ef4444')}
+          emissiveIntensity={0.1}
+          metalness={0.95}
+          roughness={0.05}
+        />
+      </mesh>
     </>
   )
 }
@@ -184,15 +215,18 @@ interface AgentShapeProps {
   size?: number
 }
 
-export function AgentShape({ shape, color, status, size = 140 }: AgentShapeProps) {
+export function AgentShape({ shape, status, size = 160 }: AgentShapeProps) {
   return (
     <div style={{ width: size, height: size }} className="mx-auto">
       <Canvas
-        camera={{ position: [0, 0, 3.5], fov: 45 }}
+        camera={{ position: [0, 0, 3.5], fov: 42 }}
         gl={{ antialias: true, alpha: true }}
         style={{ background: 'transparent' }}
       >
-        <Scene shape={shape} color={color} status={status} />
+        {shape === 'icosahedron'  && <IcosahedronMesh status={status} />}
+        {shape === 'torusKnot'    && <TorusKnotMesh   status={status} />}
+        {shape === 'dodecahedron' && <OctahedronMesh  status={status} />}
+        {shape === 'octahedron'   && <TetrahedronMesh status={status} />}
       </Canvas>
     </div>
   )

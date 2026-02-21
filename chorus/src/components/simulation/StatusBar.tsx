@@ -4,12 +4,12 @@ import { formatElapsed } from '../../lib/utils'
 
 const STAGES = ['researching', 'planning', 'building', 'deploying', 'complete'] as const
 
-const STAGE_LABELS: Record<string, string> = {
-  researching: 'RESEARCHING',
-  planning: 'PLANNING',
-  building: 'BUILDING',
-  deploying: 'DEPLOYING',
-  complete: 'COMPLETE',
+const STAGE_LABEL: Record<string, string> = {
+  researching: 'RESEARCH',
+  planning:    'PLANNING',
+  building:    'BUILDING',
+  deploying:   'DEPLOY',
+  complete:    'COMPLETE',
 }
 
 export function StatusBar() {
@@ -17,85 +17,150 @@ export function StatusBar() {
 
   const currentStageIdx = STAGES.indexOf(state.stage as typeof STAGES[number])
   const burnRate = state.elapsedSeconds > 0
-    ? (state.spentBudget / (state.elapsedSeconds / 60)).toFixed(2)
-    : '0.00'
+    ? (state.spentBudget / (state.elapsedSeconds / 60)).toFixed(1)
+    : '0.0'
 
-  const missionTitle = state.mission.length > 48
-    ? state.mission.slice(0, 48) + '...'
+  const missionTitle = state.mission.length > 36
+    ? state.mission.slice(0, 36) + '…'
     : state.mission
 
   return (
-    <motion.div
-      className="flex items-center justify-between px-6 py-3 border-b transition-all duration-700"
+    <div
+      className="nexus-status-bar flex items-center justify-between gap-4 px-5"
       style={{
-        borderColor: state.dangerMode ? 'rgba(239,68,68,0.4)' : '#1a1a2e',
-        background: state.dangerMode
-          ? 'rgba(239,68,68,0.06)'
-          : 'rgba(15,15,26,0.95)',
-        backdropFilter: 'blur(12px)',
+        height: 52,
+        background: 'rgba(5,5,10,0.98)',
+        borderBottom: `1px solid ${state.dangerMode ? 'rgba(239,68,68,0.4)' : '#111'}`,
+        backdropFilter: 'blur(16px)',
+        transition: 'border-color 800ms ease',
+        zIndex: 10,
       }}
-      animate={state.dangerMode ? { borderColor: ['rgba(239,68,68,0.4)', 'rgba(239,68,68,0.8)', 'rgba(239,68,68,0.4)'] } : {}}
-      transition={{ duration: 1.5, repeat: state.dangerMode ? Infinity : 0 }}
     >
-      {/* Mission */}
-      <div className="flex items-center gap-3 min-w-0 flex-1">
-        <span className="w-2 h-2 rounded-full bg-[#3b82f6] animate-pulse flex-shrink-0" />
+      {/* LEFT: NEXUS // mission */}
+      <div
+        className="flex items-center gap-2 min-w-0 flex-shrink-0"
+        style={{ maxWidth: 280, position: 'relative', zIndex: 1 }}
+      >
         <span
-          className="font-mono text-xs text-[#94a3b8] truncate"
+          className="text-white whitespace-nowrap"
+          style={{
+            fontFamily: 'Orbitron, sans-serif',
+            fontWeight: 900,
+            fontSize: 18,
+            letterSpacing: '0.2em',
+          }}
+        >
+          NEXUS //
+        </span>
+        <span
+          className="text-[#333] select-none flex-shrink-0"
+          style={{ fontSize: 14, fontWeight: 700 }}
+        >
+          /
+        </span>
+        <span
+          className="truncate"
+          style={{
+            fontFamily: "'Space Mono', monospace",
+            fontWeight: 400,
+            fontSize: 13,
+            color: '#64748b',
+            maxWidth: 200,
+          }}
           title={state.mission}
         >
-          {missionTitle || 'No mission set'}
+          {missionTitle || 'no mission set'}
         </span>
       </div>
 
-      {/* Stage pipeline */}
-      <div className="flex items-center gap-1 flex-shrink-0">
-        {STAGES.map((stage, i) => (
-          <div key={stage} className="flex items-center gap-1">
-            <span
-              className="font-bold text-[10px] tracking-widest transition-all duration-500"
-              style={{
-                fontFamily: 'Space Grotesk, sans-serif',
-                color:
-                  i < currentStageIdx
-                    ? '#22c55e'
-                    : i === currentStageIdx
-                    ? '#f8fafc'
-                    : '#1a1a2e',
-              }}
-            >
-              {STAGE_LABELS[stage]}
-            </span>
-            {i < STAGES.length - 1 && (
-              <span className="text-[#1a1a2e] text-[10px] mx-0.5">→</span>
-            )}
-          </div>
-        ))}
+      {/* CENTER: stage pills */}
+      <div
+        className="flex items-center flex-shrink-0"
+        style={{ gap: 0, position: 'relative', zIndex: 1 }}
+      >
+        {STAGES.map((stage, i) => {
+          const isPast    = i < currentStageIdx
+          const isCurrent = i === currentStageIdx
+          const isLast    = i === STAGES.length - 1
+
+          return (
+            <div key={stage} className="flex items-center">
+              <div
+                style={{
+                  fontFamily: "'Space Mono', monospace",
+                  fontWeight: 700,
+                  fontSize: 11,
+                  padding: '2px 8px',
+                  letterSpacing: '0.05em',
+                  background: isCurrent ? 'white' : 'transparent',
+                  color: isCurrent
+                    ? '#000'
+                    : isPast
+                    ? '#3b82f6'
+                    : '#1f2937',
+                  textDecoration: isPast ? 'line-through' : 'none',
+                  opacity: isPast ? 0.5 : 1,
+                  transition: 'all 400ms ease',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {STAGE_LABEL[stage]}
+              </div>
+              {!isLast && (
+                <span style={{ color: '#333', fontSize: 14, margin: '0 2px', userSelect: 'none' }}>›</span>
+              )}
+            </div>
+          )
+        })}
       </div>
 
-      {/* Time + burn rate */}
-      <div className="flex items-center gap-4 flex-shrink-0 ml-4">
+      {/* RIGHT: elapsed time + burn rate */}
+      <div
+        className="flex items-center gap-4 flex-shrink-0"
+        style={{ position: 'relative', zIndex: 1 }}
+      >
+        {state.dangerMode && (
+          <motion.span
+            style={{
+              fontFamily: "'Space Mono', monospace",
+              fontWeight: 700,
+              fontSize: 10,
+              color: '#ef4444',
+              letterSpacing: '0.15em',
+            }}
+            animate={{ opacity: [1, 0.2, 1] }}
+            transition={{ duration: 0.7, repeat: Infinity }}
+          >
+            ⚠ LOW FUNDS
+          </motion.span>
+        )}
         <div className="text-right">
-          <div className="font-mono text-xs text-[#f8fafc] tabular-nums">
+          <motion.div
+            style={{
+              fontFamily: "'VT323', monospace",
+              fontSize: 28,
+              lineHeight: 1,
+              color: state.dangerMode ? '#ef4444' : 'white',
+              letterSpacing: '0.05em',
+            }}
+            animate={state.dangerMode ? { opacity: [1, 0.5, 1] } : { opacity: 1 }}
+            transition={state.dangerMode ? { duration: 1.2, repeat: Infinity } : {}}
+          >
             {formatElapsed(state.elapsedSeconds)}
-          </div>
+          </motion.div>
           <div
-            className="font-mono text-[9px]"
-            style={{ color: state.dangerMode ? '#ef4444' : '#64748b' }}
+            style={{
+              fontFamily: "'Space Mono', monospace",
+              fontWeight: 400,
+              fontSize: 10,
+              color: '#64748b',
+              lineHeight: 1.2,
+            }}
           >
             ${burnRate}/min
           </div>
         </div>
-        {state.dangerMode && (
-          <motion.span
-            className="font-bold text-[10px] text-[#ef4444] tracking-widest"
-            animate={{ opacity: [1, 0, 1] }}
-            transition={{ duration: 0.6, repeat: Infinity }}
-          >
-            ⚠ LOW BUDGET
-          </motion.span>
-        )}
       </div>
-    </motion.div>
+    </div>
   )
 }
