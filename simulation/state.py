@@ -28,6 +28,8 @@ class Transaction:
     approved_by: str
     timestamp: datetime
     category: str
+    agent: str = ""               # which agent proposed this spend
+    stripe_payment_id: str = ""   # Stripe PaymentIntent ID once charged
 
 
 @dataclass
@@ -64,12 +66,22 @@ class BudgetTracker:
     def can_afford(self, amount: float) -> bool:
         return self.remaining >= amount
 
+    def spent_by_agent(self) -> dict[str, float]:
+        """Return total spend grouped by proposing agent."""
+        totals: dict[str, float] = {}
+        for t in self.transactions:
+            if t.amount < 0 and t.agent:
+                totals[t.agent] = totals.get(t.agent, 0.0) + abs(t.amount)
+        return totals
+
     def record(
         self,
         description: str,
         amount: float,
         approved_by: str,
         category: str,
+        agent: str = "",
+        stripe_payment_id: str = "",
     ) -> Transaction:
         txn = Transaction(
             id=str(uuid.uuid4()),
@@ -78,6 +90,8 @@ class BudgetTracker:
             approved_by=approved_by,
             timestamp=datetime.now(timezone.utc),
             category=category,
+            agent=agent,
+            stripe_payment_id=stripe_payment_id,
         )
         self.transactions.append(txn)
         return txn
