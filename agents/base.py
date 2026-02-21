@@ -84,14 +84,17 @@ class BaseAgent:
                 }
             )
 
-        # Build the user message: optional context + question
+        # Build the user message: conversation history + state + question
         user_text = question
         if context:
-            context_lines = "\n".join(f"- {k}: {v}" for k, v in context.items())
-            user_text = (
-                f"Current simulation state:\n{context_lines}\n\n"
-                f"Task: {question}"
-            )
+            conversation = context.pop("conversation", None)
+            state_lines = "\n".join(f"- {k}: {v}" for k, v in context.items())
+            parts = []
+            if conversation and conversation != "(No prior conversation.)":
+                parts.append(f"Full conversation so far:\n{conversation}")
+            parts.append(f"Current simulation state:\n{state_lines}")
+            parts.append(f"Task: {question}")
+            user_text = "\n\n".join(parts)
 
         content_blocks.append({"type": "text", "text": user_text})
 
@@ -136,11 +139,14 @@ class BaseAgent:
         """Query the agent without RAG retrieval (for debate rounds, reactions, etc.)."""
         user_text = question
         if context:
-            context_lines = "\n".join(f"- {k}: {v}" for k, v in context.items())
-            user_text = (
-                f"Current simulation state:\n{context_lines}\n\n"
-                f"Task: {question}"
-            )
+            conversation = context.pop("conversation", None)
+            state_lines = "\n".join(f"- {k}: {v}" for k, v in context.items())
+            parts = []
+            if conversation and conversation != "(No prior conversation.)":
+                parts.append(f"Full conversation so far:\n{conversation}")
+            parts.append(f"Current simulation state:\n{state_lines}")
+            parts.append(f"Task: {question}")
+            user_text = "\n\n".join(parts)
 
         response = await self.client.messages.create(
             model=self.config.model,

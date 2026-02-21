@@ -14,7 +14,6 @@ from simulation.events import (
 )
 from simulation.prompts import debate_response_prompt
 from simulation.proposals import (
-    AgentVote,
     Proposal,
     ProposalStatus,
     extract_proposal_from_response,
@@ -62,8 +61,9 @@ class DebateManager:
                     "round": round_num,
                 })
 
-                prior = self._format_prior_messages()
-                prompt = debate_response_prompt(agent_name, prior, topic)
+                # Full conversation (all phases) is included via context dict.
+                # The agent sees research, proposals, AND prior debate turns.
+                prompt = debate_response_prompt(agent_name, topic)
                 context = self.state.get_context_dict()
 
                 response = await agent.query_without_rag(prompt, context=context)
@@ -136,31 +136,6 @@ class DebateManager:
                     })
 
         return proposals
-
-    def _format_prior_messages(self) -> str:
-        """Format debate messages for inclusion in prompts."""
-        debate_msgs = [
-            m for m in self.state.conversation if m.phase == Phase.DEBATE
-        ]
-        if not debate_msgs:
-            return "(No prior debate messages.)"
-        lines = []
-        for m in debate_msgs:
-            lines.append(f"[Round {m.round_number}] {m.agent} ({m.role}):\n{m.content}\n")
-        return "\n".join(lines)
-
-    def _get_debate_history(self) -> list[dict]:
-        """Return debate messages as a list of dicts."""
-        return [
-            {
-                "agent": m.agent,
-                "role": m.role,
-                "content": m.content,
-                "round": m.round_number,
-            }
-            for m in self.state.conversation
-            if m.phase == Phase.DEBATE
-        ]
 
     def _check_consensus(self, proposals: list[Proposal]) -> bool:
         """Check if all proposals have unanimous votes."""

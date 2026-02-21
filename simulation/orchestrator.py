@@ -105,21 +105,20 @@ class SimulationOrchestrator:
         await self.event_bus.emit(PHASE_CHANGED, {"phase": str(Phase.PROPOSAL)})
 
     async def _run_proposal(self) -> None:
-        """Chain: Product → Tech → Finance → Risk, each using query_without_rag()."""
-        context = self.state.get_context_dict()
+        """Chain: Product → Tech → Finance → Risk.
+
+        Each agent receives the full conversation so far (via state.get_context_dict()),
+        so every agent sees what all prior agents have said across all phases.
+        The prompts provide the specific task; the conversation provides full context.
+        """
         proposals: list[Proposal] = []
 
-        # Get the market research from conversation
-        research_content = ""
-        for msg in self.state.conversation:
-            if msg.phase == Phase.RESEARCH:
-                research_content = msg.content
-                break
-
-        # Product Agent — MVP proposal
+        # Product Agent — MVP proposal (sees research via conversation)
         product_agent = self.agents["product"]
-        product_prompt = mvp_proposal_prompt(self.state.startup_idea, research_content)
-        product_resp = await product_agent.query_without_rag(product_prompt, context=context)
+        product_prompt = mvp_proposal_prompt(self.state.startup_idea)
+        product_resp = await product_agent.query_without_rag(
+            product_prompt, context=self.state.get_context_dict(),
+        )
         self.state.add_message(
             agent=product_resp.agent, role=product_resp.role,
             content=product_resp.content, phase=Phase.PROPOSAL,
@@ -129,10 +128,12 @@ class SimulationOrchestrator:
         if p:
             proposals.append(p)
 
-        # Tech Agent — feasibility review
+        # Tech Agent — feasibility review (sees research + product via conversation)
         tech_agent = self.agents["tech"]
-        tech_prompt = feasibility_review_prompt(product_resp.content)
-        tech_resp = await tech_agent.query_without_rag(tech_prompt, context=context)
+        tech_prompt = feasibility_review_prompt()
+        tech_resp = await tech_agent.query_without_rag(
+            tech_prompt, context=self.state.get_context_dict(),
+        )
         self.state.add_message(
             agent=tech_resp.agent, role=tech_resp.role,
             content=tech_resp.content, phase=Phase.PROPOSAL,
@@ -142,14 +143,16 @@ class SimulationOrchestrator:
         if p:
             proposals.append(p)
 
-        # Finance Agent — budget review
+        # Finance Agent — budget review (sees everything so far via conversation)
         finance_agent = self.agents["finance"]
         proposals_text = "\n\n".join(
             f"- {pr.title} | Cost: {pr.estimated_cost} | Category: {pr.category}"
             for pr in proposals
         ) or "(No spending proposals yet.)"
         finance_prompt = budget_review_prompt(proposals_text, self.state.budget.remaining)
-        finance_resp = await finance_agent.query_without_rag(finance_prompt, context=context)
+        finance_resp = await finance_agent.query_without_rag(
+            finance_prompt, context=self.state.get_context_dict(),
+        )
         self.state.add_message(
             agent=finance_resp.agent, role=finance_resp.role,
             content=finance_resp.content, phase=Phase.PROPOSAL,
@@ -160,10 +163,12 @@ class SimulationOrchestrator:
             for pr in proposals:
                 pr.votes.append(vote)
 
-        # Risk Agent — risk review
+        # Risk Agent — risk review (sees everything so far via conversation)
         risk_agent = self.agents["risk"]
         risk_prompt = risk_review_prompt(proposals_text, self.state.startup_idea)
-        risk_resp = await risk_agent.query_without_rag(risk_prompt, context=context)
+        risk_resp = await risk_agent.query_without_rag(
+            risk_prompt, context=self.state.get_context_dict(),
+        )
         self.state.add_message(
             agent=risk_resp.agent, role=risk_resp.role,
             content=risk_resp.content, phase=Phase.PROPOSAL,

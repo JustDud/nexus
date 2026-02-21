@@ -1,4 +1,9 @@
-"""Prompt templates for each simulation phase."""
+"""Prompt templates for each simulation phase.
+
+All prompts assume the full conversation history is included in the context
+that precedes the task instruction. Agents see everything every other agent
+has said so far — no need to duplicate content inline.
+"""
 
 
 def research_prompt(startup_idea: str) -> str:
@@ -18,14 +23,11 @@ Cite your sources wherever possible. Reference specific data points, reports, or
 End with a clear **Recommendation**: proceed, pivot, or abandon — and why."""
 
 
-def mvp_proposal_prompt(startup_idea: str, market_research: str) -> str:
+def mvp_proposal_prompt(startup_idea: str) -> str:
     return f"""\
-Based on the market research below, propose a Minimum Viable Product for this startup.
+Based on the market research in the conversation above, propose a Minimum Viable Product for this startup.
 
 Startup idea: {startup_idea}
-
-Market research summary:
-{market_research}
 
 Your proposal must include:
 1. **Value proposition** — one clear sentence
@@ -41,12 +43,9 @@ CATEGORY: <engineering | marketing | infrastructure | operations>
 REASON: <why this spend is necessary>"""
 
 
-def feasibility_review_prompt(mvp_proposal: str) -> str:
-    return f"""\
-Evaluate the technical feasibility of this MVP proposal.
-
-MVP proposal:
-{mvp_proposal}
+def feasibility_review_prompt() -> str:
+    return """\
+Evaluate the technical feasibility of the MVP proposal in the conversation above.
 
 Provide:
 1. **Complexity assessment** — rate each proposed feature as low / medium / high complexity
@@ -63,7 +62,8 @@ REASON: <why this spend is necessary>"""
 
 def budget_review_prompt(proposals_text: str, budget_remaining: float) -> str:
     return f"""\
-Review the following spending proposals as the finance advisor.
+Review the following spending proposals as the finance advisor. \
+You have full context of the conversation above.
 
 Proposals:
 {proposals_text}
@@ -83,7 +83,8 @@ After reviewing each proposal individually, provide:
 
 def risk_review_prompt(proposals_text: str, startup_idea: str) -> str:
     return f"""\
-Assess risks for the following proposals in the context of this startup.
+Assess risks for the following proposals in the context of this startup. \
+You have full context of the conversation above.
 
 Startup idea: {startup_idea}
 
@@ -105,16 +106,17 @@ CONDITIONS: <required risk mitigations, if CONDITIONAL>"""
 
 def debate_response_prompt(
     agent_name: str,
-    prior_messages: str,
     topic: str,
 ) -> str:
     return f"""\
-You are {agent_name}. Respond to the ongoing debate about: {topic}
+You are {agent_name}. Respond to the ongoing discussion about: {topic}
 
-Prior discussion:
-{prior_messages}
+The full conversation history is above — you can see what every agent has said \
+across all phases (research, proposals, and any prior debate rounds). \
+Build on their points, challenge what you disagree with, and reference specifics.
 
-Provide your response in 2-4 paragraphs. Be direct and substantive. You may agree, disagree, or propose alternatives. Reference specific points from prior messages.
+Provide your response in 2-4 paragraphs. Be direct and substantive. \
+You may agree, disagree, or propose alternatives.
 
 If you want to propose new spending or modify existing proposals, use:
 PROPOSAL: <what>

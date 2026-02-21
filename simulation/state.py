@@ -124,6 +124,26 @@ class SimulationState:
         self.conversation.append(msg)
         return msg
 
+    def format_full_conversation(self) -> str:
+        """Format the entire conversation history across all phases.
+
+        Every agent sees what every other agent has said so far,
+        regardless of which phase the messages originated from.
+        """
+        if not self.conversation:
+            return "(No prior conversation.)"
+        lines: list[str] = []
+        current_phase = None
+        for m in self.conversation:
+            if m.phase != current_phase:
+                current_phase = m.phase
+                lines.append(f"\n--- {current_phase} ---")
+            header = f"{m.agent} ({m.role})"
+            if m.round_number:
+                header += f" [Round {m.round_number}]"
+            lines.append(f"{header}:\n{m.content}\n")
+        return "\n".join(lines)
+
     def get_context_dict(self) -> dict:
         """Return the context dict that BaseAgent.query(context=...) expects."""
         return {
@@ -133,4 +153,5 @@ class SimulationState:
             "total_spent": self.budget.total_spent,
             "phase": str(self.phase),
             "round": self.current_round,
+            "conversation": self.format_full_conversation(),
         }
