@@ -22,12 +22,12 @@ class TestEmbeddingProviderStructure:
 
     def test_provider_uses_configured_model(self):
         provider = EmbeddingProvider()
-        assert provider.model == "text-embedding-3-small"
+        assert provider.model == "gemini-embedding-001"
 
     def test_provider_has_dimensions(self):
         provider = EmbeddingProvider()
-        assert provider.dimensions == 1536
+        assert provider.dimensions == 768
 
-    def test_provider_has_openai_client(self):
+    def test_provider_has_genai_client(self):
         provider = EmbeddingProvider()
         assert provider.client is not None

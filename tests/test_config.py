@@ -15,7 +15,7 @@ class TestSettingsClass:
         fields = Settings.model_fields
         expected = [
             "anthropic_api_key",
-            "openai_api_key",
+            "gemini_api_key",
             "default_model",
             "embedding_model",
             "embedding_dimensions",
@@ -55,12 +55,12 @@ class TestSettingsClass:
         try:
             s = Settings(
                 anthropic_api_key="test",
-                openai_api_key="test",
+                gemini_api_key="test",
                 _env_file=None,
             )
             assert s.default_model == "claude-sonnet-4-6"
-            assert s.embedding_model == "text-embedding-3-small"
-            assert s.embedding_dimensions == 1536
+            assert s.embedding_model == "gemini-embedding-001"
+            assert s.embedding_dimensions == 768
             assert s.chunk_size == 512
             assert s.chunk_overlap == 50
             assert s.retrieval_top_k == 5
@@ -83,7 +83,7 @@ class TestSettingsClass:
         from config import Settings
         s = Settings(
             anthropic_api_key="test",
-            openai_api_key="test",
+            gemini_api_key="test",
             chunk_size=1024,
             retrieval_top_k=10,
         )
@@ -106,21 +106,21 @@ class TestSettingsClass:
     def test_settings_from_env_vars(self):
         from config import Settings
         old_ant = os.environ.get("ANTHROPIC_API_KEY")
-        old_oai = os.environ.get("OPENAI_API_KEY")
+        old_oai = os.environ.get("GEMINI_API_KEY")
         os.environ["ANTHROPIC_API_KEY"] = "sk-ant-test123"
-        os.environ["OPENAI_API_KEY"] = "sk-test456"
+        os.environ["GEMINI_API_KEY"] = "gemini-test456"
         os.environ["CHUNK_SIZE"] = "256"
         try:
             s = Settings()
             assert s.anthropic_api_key == "sk-ant-test123"
-            assert s.openai_api_key == "sk-test456"
+            assert s.gemini_api_key == "gemini-test456"
             assert s.chunk_size == 256
         finally:
             # Restore original values (set by conftest)
             if old_ant is not None:
                 os.environ["ANTHROPIC_API_KEY"] = old_ant
             if old_oai is not None:
-                os.environ["OPENAI_API_KEY"] = old_oai
+                os.environ["GEMINI_API_KEY"] = old_oai
             os.environ.pop("CHUNK_SIZE", None)
 
 
@@ -139,9 +139,9 @@ class TestGetSettings:
         # Clear the cache first
         get_settings.cache_clear()
         old_ant = os.environ.get("ANTHROPIC_API_KEY")
-        old_oai = os.environ.get("OPENAI_API_KEY")
+        old_oai = os.environ.get("GEMINI_API_KEY")
         os.environ["ANTHROPIC_API_KEY"] = "test-key"
-        os.environ["OPENAI_API_KEY"] = "test-key"
+        os.environ["GEMINI_API_KEY"] = "test-key"
         try:
             s = get_settings()
             assert isinstance(s, Settings)
@@ -151,5 +151,5 @@ class TestGetSettings:
             if old_ant is not None:
                 os.environ["ANTHROPIC_API_KEY"] = old_ant
             if old_oai is not None:
-                os.environ["OPENAI_API_KEY"] = old_oai
+                os.environ["GEMINI_API_KEY"] = old_oai
             get_settings.cache_clear()

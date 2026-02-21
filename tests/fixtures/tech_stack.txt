@@ -1,0 +1,11 @@
+Technical Architecture Notes
+
+Backend: FastAPI (Python 3.12) with async request handling. PostgreSQL for structured data, ChromaDB for vector embeddings. Redis for session caching and rate limiting.
+
+Frontend: React 18 with TypeScript, Vite bundler, TailwindCSS for styling. WebSocket connections for real-time simulation updates. Progressive Web App for mobile compatibility.
+
+AI/ML: Fine-tuned transformer model for pet symptom classification. RAG pipeline using Gemini embeddings with ChromaDB vector store. Multi-agent orchestration for startup simulation.
+
+Infrastructure: Docker containers on AWS ECS. CloudFront CDN for static assets. GitHub Actions for CI/CD pipeline. Estimated monthly hosting cost: $200-500 depending on traffic.
+
+Scalability considerations: Horizontal scaling via container orchestration. Database read replicas for query-heavy workloads. Embedding generation can be batched for cost efficiency.

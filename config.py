@@ -6,12 +6,12 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     # API keys
     anthropic_api_key: str
-    openai_api_key: str = ""
+    gemini_api_key: str = ""
 
     # Model settings
     default_model: str = "claude-sonnet-4-6"
-    embedding_model: str = "text-embedding-3-small"
-    embedding_dimensions: int = 1536
+    embedding_model: str = "gemini-embedding-001"
+    embedding_dimensions: int = 768
 
     # RAG settings
     chunk_size: int = 512
