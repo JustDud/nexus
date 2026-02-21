@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import re
-
 from agents.base import BaseAgent
 from agents.definitions import get_agent
 from rag.retriever import Retriever
