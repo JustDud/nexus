@@ -247,6 +247,9 @@ async def _recv_loop(ws: WebSocket, session) -> None:
                     )
             elif data.get("type") == "stop_simulation":
                 session.status = "stopping"
+                sim_task = getattr(session, "_sim_task", None)
+                if sim_task and not sim_task.done():
+                    sim_task.cancel()
         except (WebSocketDisconnect, asyncio.CancelledError):
             return
         except Exception:
@@ -276,6 +279,7 @@ async def websocket_simulation(ws: WebSocket):
 
         # Start simulation as a background task
         sim_task = asyncio.create_task(run_simulation(session))
+        session._sim_task = sim_task
 
         # Start recv_loop independently — it only forwards user decisions
         recv_task = asyncio.create_task(_recv_loop(ws, session))

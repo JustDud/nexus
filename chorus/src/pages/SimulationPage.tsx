@@ -85,7 +85,8 @@ export function SimulationPage() {
       className="flex flex-col"
       data-danger={String(state.dangerMode)}
       style={{
-        minHeight: '100vh',
+        height: '100vh',
+        overflow: 'hidden',
         background: '#05050a',
         position: 'relative',
       }}
@@ -97,7 +98,7 @@ export function SimulationPage() {
         <StatusBar
           isMuted={isMuted}
           onToggleMute={() => setIsMuted(!isMuted)}
-          onStop={stopSimulation}
+          onStop={() => { stopSimulation(); navigate('/') }}
         />
       </div>
 

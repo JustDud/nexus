@@ -415,6 +415,9 @@ async def run_simulation(session) -> None:
             else:
                 break
 
+    except asyncio.CancelledError:
+        logger.info("Simulation stopped by user")
+        session.status = "stopped"
     except Exception as e:
         logger.exception("Simulation failed: %s", e)
         session.status = "failed"
