@@ -5,6 +5,7 @@ import { useSimulation } from '../../context/SimulationContext'
 import AgentShape from './shapes/AgentShape'
 import { TerminalPanel } from './TerminalPanel'
 import { AgentDetailModal } from './AgentDetailModal'
+import Plasma from './Plasma/Plasma'
 import type { AgentId, AgentStatus } from '../../types'
 
 // Holographic palette — overrides raw agent colors for card chrome
@@ -13,6 +14,14 @@ const CARD_COLORS: Record<AgentId, string> = {
   tech:    '#67e8f9', // soft cyan
   ops:     '#e879f9', // soft magenta
   finance: '#fda4af', // soft rose
+}
+
+// Plasma tints per agent — muted accent colors matching each agent theme
+const PLASMA_COLORS: Record<AgentId, string> = {
+  product: '#f59e0b', // warm amber
+  tech:    '#22c55e', // cool green
+  ops:     '#8b5cf6', // purple/violet
+  finance: '#ef4444', // red/rose
 }
 
 /* ── Corner bracket ───────────────────────────────────────────── */
@@ -29,10 +38,10 @@ function Corner({ pos, color }: { pos: 'tl' | 'tr' | 'bl' | 'br'; color: string 
         bottom: !top ? 0 : undefined,
         left:   left  ? 0 : undefined,
         right:  !left ? 0 : undefined,
-        borderTop:    top    ? `2px solid ${color}99` : undefined,
-        borderBottom: !top   ? `2px solid ${color}99` : undefined,
-        borderLeft:   left   ? `2px solid ${color}99` : undefined,
-        borderRight:  !left  ? `2px solid ${color}99` : undefined,
+        borderTop:    top    ? `2px solid ${color}cc` : undefined,
+        borderBottom: !top   ? `2px solid ${color}cc` : undefined,
+        borderLeft:   left   ? `2px solid ${color}cc` : undefined,
+        borderRight:  !left  ? `2px solid ${color}cc` : undefined,
         pointerEvents: 'none',
         zIndex: 3,
       }}
@@ -100,22 +109,27 @@ function AgentCard({ agentId, onOpen }: { agentId: AgentId; onOpen: () => void }
       <div
         className="relative h-full overflow-hidden"
         style={{
-          background: 'rgba(10,8,22,0.82)',
+          background: 'rgba(8, 12, 24, 0.55)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
+          boxShadow: 'inset 0 0 30px rgba(100, 200, 255, 0.03), 0 4px 20px rgba(0, 0, 0, 0.3)',
           border: `1px solid ${borderColor}`,
           borderRadius: 0,
           display: 'flex',
           flexDirection: 'row',
-          transition: 'border-color 200ms ease, box-shadow 200ms ease',
+          transition: 'border-color 200ms ease, box-shadow 200ms ease, background 200ms ease',
         }}
         onMouseEnter={e => {
           const el = e.currentTarget as HTMLDivElement
           el.style.borderColor = hoverBorder
-          el.style.boxShadow   = hoverShadow
+          el.style.boxShadow   = `${hoverShadow}, inset 0 0 40px rgba(100, 200, 255, 0.04)`
+          el.style.background  = 'rgba(12, 18, 35, 0.65)'
         }}
         onMouseLeave={e => {
           const el = e.currentTarget as HTMLDivElement
           el.style.borderColor = borderColor
-          el.style.boxShadow   = 'none'
+          el.style.boxShadow   = 'inset 0 0 30px rgba(100, 200, 255, 0.03), 0 4px 20px rgba(0, 0, 0, 0.3)'
+          el.style.background  = 'rgba(8, 12, 24, 0.55)'
         }}
       >
         {/* Corner brackets use holographic color */}
@@ -144,47 +158,78 @@ function AgentCard({ agentId, onOpen }: { agentId: AgentId; onOpen: () => void }
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 12,
-            padding: '16px 8px',
+            padding: '10px 8px',
             position: 'relative',
             zIndex: 1,
+            overflow: 'hidden',
           }}
         >
-          {/* 3D shape */}
-          <AgentShape
-            agentId={def.id}
-            state={agentState.status}
-            size={180}
-          />
-
-          {/* Agent name */}
+          {/* Plasma atmospheric background — very subtle, behind the shape */}
           <div
             style={{
-              fontFamily: "'Space Mono', monospace",
-              fontWeight: 700,
-              fontSize: 11,
-              color: cardColor,
-              letterSpacing: '0.15em',
-              textTransform: 'uppercase',
-              textAlign: 'center',
-              textShadow: `0 0 12px ${cardColor}60`,
+              position: 'absolute',
+              inset: 0,
+              zIndex: 0,
+              opacity: 0.35,
+              mixBlendMode: 'screen',
+              pointerEvents: 'none',
             }}
           >
-            {def.name}
+            <Plasma
+              color={PLASMA_COLORS[agentId]}
+              speed={0.4}
+              scale={1.2}
+              mouseInteractive={false}
+            />
           </div>
 
-          {/* Status row */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <StatusDot status={agentState.status} color={cardColor} />
-            <span
+          {/* Content — sits above plasma */}
+          <div
+            style={{
+              position: 'relative',
+              zIndex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            {/* 3D shape */}
+            <AgentShape
+              agentId={def.id}
+              state={agentState.status}
+              size={180}
+            />
+
+            {/* Agent name */}
+            <div
               style={{
-                fontFamily: "'Share Tech Mono', monospace",
-                fontSize: 12,
-                color: isBlocked ? '#fb7185' : 'rgba(148,163,184,0.75)',
+                fontFamily: "'Space Mono', monospace",
+                fontWeight: 700,
+                fontSize: 11,
+                color: '#E8ECF2',
+                letterSpacing: '0.15em',
+                textTransform: 'uppercase',
+                textAlign: 'center',
+                textShadow: '0 0 10px rgba(100, 200, 255, 0.2)',
               }}
             >
-              {STATUS_TEXT[agentState.status]}
-            </span>
+              {def.name}
+            </div>
+
+            {/* Status row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <StatusDot status={agentState.status} color={cardColor} />
+              <span
+                style={{
+                  fontFamily: "'Share Tech Mono', monospace",
+                  fontSize: 12,
+                  color: isBlocked ? '#fb7185' : '#8B95A5',
+                }}
+              >
+                {STATUS_TEXT[agentState.status]}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -223,7 +268,10 @@ export function AgentStage() {
 
   return (
     <>
-      <div className="grid grid-cols-2 grid-rows-2 gap-3 h-full">
+      <div
+        className="grid grid-cols-2 gap-3"
+        style={{ gridTemplateRows: 'repeat(2, 280px)', alignContent: 'center', height: '100%' }}
+      >
         {AGENTS.map((def) => (
           <AgentCard
             key={def.id}

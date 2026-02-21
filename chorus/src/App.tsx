@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { SimulationProvider } from './context/SimulationContext'
 import { HomePage } from './pages/HomePage'
 import { SimulationPage } from './pages/SimulationPage'
+import { ProjectSummaryPage } from './pages/ProjectSummaryPage'
 
 function PageWrapper({ children }: { children: React.ReactNode }) {
   return (
@@ -37,6 +38,14 @@ function AnimatedRoutes() {
             element={
               <PageWrapper>
                 <SimulationPage />
+              </PageWrapper>
+            }
+          />
+          <Route
+            path="/summary"
+            element={
+              <PageWrapper>
+                <ProjectSummaryPage />
               </PageWrapper>
             }
           />
