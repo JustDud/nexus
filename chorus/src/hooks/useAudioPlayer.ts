@@ -12,6 +12,17 @@ export function useAudioPlayer() {
   const [isPlaying, setIsPlaying] = useState(false)
   const queueRef = useRef<AudioEvent[]>([])
   const playingRef = useRef(false)
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null)
+
+  const stopAll = useCallback(() => {
+    queueRef.current = []
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause()
+      currentAudioRef.current = null
+    }
+    playingRef.current = false
+    setIsPlaying(false)
+  }, [])
 
   const playNext = useCallback(async () => {
     if (playingRef.current || queueRef.current.length === 0) return
@@ -23,15 +34,18 @@ export function useAudioPlayer() {
     const blob = new Blob([bytes], { type: item.content_type })
     const url = URL.createObjectURL(blob)
     const audio = new Audio(url)
+    currentAudioRef.current = audio
 
     audio.onended = () => {
       URL.revokeObjectURL(url)
+      currentAudioRef.current = null
       playingRef.current = false
       setIsPlaying(false)
       playNext()
     }
     audio.onerror = () => {
       URL.revokeObjectURL(url)
+      currentAudioRef.current = null
       playingRef.current = false
       setIsPlaying(false)
       playNext()
@@ -51,5 +65,5 @@ export function useAudioPlayer() {
     return () => window.removeEventListener('sim-audio', handler)
   }, [isMuted, playNext])
 
-  return { isMuted, setIsMuted, isPlaying }
+  return { isMuted, setIsMuted, isPlaying, stopAll }
 }

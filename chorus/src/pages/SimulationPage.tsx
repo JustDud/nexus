@@ -65,7 +65,7 @@ export function SimulationPage() {
   const { state, tickElapsed } = useSimulation()
   const navigate = useNavigate()
   const { connected, sendDecision, stopSimulation } = useWebSocket(WS_URL)
-  const { isMuted, setIsMuted, isPlaying } = useAudioPlayer()
+  const { isMuted, setIsMuted, isPlaying, stopAll } = useAudioPlayer()
 
   useEffect(() => {
     if (!state.mission) navigate('/')
@@ -98,7 +98,7 @@ export function SimulationPage() {
         <StatusBar
           isMuted={isMuted}
           onToggleMute={() => setIsMuted(!isMuted)}
-          onStop={() => { stopSimulation(); navigate('/') }}
+          onStop={() => { stopAll(); stopSimulation(); navigate('/') }}
         />
       </div>
 

@@ -243,14 +243,15 @@ class SimulationOrchestrator:
             max_rounds=self.state.max_debate_rounds,
         )
 
-        consensus = [p for p in proposals if p.status == ProposalStatus.APPROVED]
-        escalated = [p for p in proposals if p.status != ProposalStatus.APPROVED and p.status != ProposalStatus.REJECTED]
-
-        self.state.decided_proposals.extend(consensus)
+        # All non-rejected proposals go to CEO for approval
+        needs_ceo = [p for p in proposals if p.status != ProposalStatus.REJECTED]
         self.state.completed_phases.append(str(Phase.DEBATE))
 
-        if escalated:
-            self.state.pending_proposals = escalated
+        if needs_ceo:
+            # Reset status so CEO sees them as pending
+            for p in needs_ceo:
+                p.status = ProposalStatus.ESCALATED
+            self.state.pending_proposals = needs_ceo
             self.state.phase = Phase.DECISION
             await self.event_bus.emit(PHASE_CHANGED, {"phase": str(Phase.DECISION)})
         else:
