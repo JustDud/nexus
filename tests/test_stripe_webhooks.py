@@ -38,7 +38,7 @@ class TestStripeWebhooks:
     def test_stripe_webhook_not_configured_returns_503(self, client):
         get_settings.cache_clear()
         get_stripe_webhook_service.cache_clear()
-        os.environ.pop("STRIPE_WEBHOOK_SECRET", None)
+        os.environ["STRIPE_WEBHOOK_SECRET"] = ""
 
         resp = client.post("/api/webhooks/stripe", json={"type": "ping"})
         assert resp.status_code == 503

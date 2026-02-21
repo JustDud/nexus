@@ -6,6 +6,7 @@ Entry point for the FastAPI application.
 from fastapi import FastAPI
 
 from api.routes import router
+from integrations.elevenlabs.router import elevenlabs_router
 from integrations.stripe.router import stripe_router
 
 app = FastAPI(
@@ -16,6 +17,7 @@ app = FastAPI(
 
 app.include_router(router, prefix="/api")
 app.include_router(stripe_router, prefix="/api")
+app.include_router(elevenlabs_router, prefix="/api")
 
 
 @app.get("/health")
