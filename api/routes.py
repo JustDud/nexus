@@ -43,6 +43,9 @@ class SearchRequest(BaseModel):
     query: str
     domain: str | None = None
     top_k: int | None = None
+    source_names: list[str] | None = None
+    topic_tags: list[str] | None = None
+    max_age_hours: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -118,5 +121,15 @@ async def search_knowledge_base(req: SearchRequest):
         query=req.query,
         domain=req.domain,
         top_k=req.top_k,
+        source_names=req.source_names,
+        topic_tags=req.topic_tags,
+        max_age_hours=req.max_age_hours,
     )
-    return {"query": req.query, "domain": req.domain, "results": results}
+    return {
+        "query": req.query,
+        "domain": req.domain,
+        "source_names": req.source_names,
+        "topic_tags": req.topic_tags,
+        "max_age_hours": req.max_age_hours,
+        "results": results,
+    }
