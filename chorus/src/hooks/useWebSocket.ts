@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useSimulation } from '../context/SimulationContext'
 import { type AgentId, type SimulationStage } from '../types'
 
@@ -18,10 +18,27 @@ export function useWebSocket(url: string | null) {
     updateBudget,
     setStage,
     setRunning,
+    setPendingApproval,
+    resolveApproval,
+    setOpsRound,
   } = useSimulation()
 
   const wsRef = useRef<WebSocket | null>(null)
   const [connected, setConnected] = useState(false)
+
+  const sendDecision = useCallback((approved: boolean, reason?: string) => {
+    const ws = wsRef.current
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'decision', approved, reason: reason ?? '' }))
+    }
+  }, [])
+
+  const stopSimulation = useCallback(() => {
+    const ws = wsRef.current
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'stop_simulation' }))
+    }
+  }, [])
 
   useEffect(() => {
     if (!url) return
@@ -88,6 +105,34 @@ export function useWebSocket(url: string | null) {
             setStage(data.stage as SimulationStage)
             break
           }
+          case 'approval_required': {
+            setPendingApproval({
+              proposalId: data.proposalId as string,
+              title: data.title as string,
+              cost: data.cost as number,
+              description: data.description as string,
+              agentId: data.agentId as AgentId,
+              agentName: data.agentName as string,
+              timestamp: Date.now(),
+            })
+            addActivity({ agentId: data.agentId as AgentId, message: `PROPOSAL: ${data.title} — $${data.cost}`, timestamp: Date.now(), type: 'action' })
+            break
+          }
+          case 'approval_resolved': {
+            resolveApproval(data.proposalId as string, data.approved as boolean)
+            const status = data.approved ? 'APPROVED' : 'REJECTED'
+            addActivity({ agentId: 'finance' as AgentId, message: `CEO ${status}: ${data.proposalId}`, timestamp: Date.now(), type: data.approved ? 'action' : 'block' })
+            break
+          }
+          case 'ops_round': {
+            setOpsRound(data.round as number)
+            addActivity({ agentId: 'product' as AgentId, message: `Operations Week ${data.round} — ${data.label}`, timestamp: Date.now(), type: 'thought' })
+            break
+          }
+          case 'audio_narration': {
+            window.dispatchEvent(new CustomEvent('sim-audio', { detail: data }))
+            break
+          }
         }
       } catch {
         // non-JSON message, ignore
@@ -99,5 +144,5 @@ export function useWebSocket(url: string | null) {
     }
   }, [url]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { connected }
+  return { connected, sendDecision, stopSimulation }
 }

@@ -107,3 +107,60 @@ DEPLOYING_PROMPTS: dict[str, str] = {
         "Report status."
     ),
 }
+
+OPERATING_PROMPTS: dict[str, str] = {
+    "market": (
+        "Operations week {ops_round} for: {idea}. "
+        "Budget remaining: ${remaining} of ${budget}. Spent: ${spent}.\n"
+        "Transactions so far:\n{transactions}\n\n"
+        "Previous outputs:\n{all_outputs}\n\n"
+        "Plan and execute marketing campaigns for this week. "
+        "Consider paid ads, content marketing, influencer partnerships, "
+        "and community building. Report expected reach and conversion metrics.\n\n"
+        "If you want to propose marketing spend, include:\n"
+        "[PROPOSAL]\nTitle: short name\nCost: $amount\n"
+        "Description: what and why\n[/PROPOSAL]"
+    ),
+    "product": (
+        "Operations week {ops_round} for: {idea}. "
+        "Budget remaining: ${remaining} of ${budget}. Spent: ${spent}.\n"
+        "Previous outputs:\n{all_outputs}\n\n"
+        "Review user feedback and product metrics from the live MVP. "
+        "Propose feature iterations, UX improvements, or A/B tests "
+        "for this week. Prioritize by user impact.\n\n"
+        "If you want to propose spending on product improvements, include:\n"
+        "[PROPOSAL]\nTitle: short name\nCost: $amount\n"
+        "Description: what and why\n[/PROPOSAL]"
+    ),
+    "tech": (
+        "Operations week {ops_round} for: {idea}. "
+        "Budget remaining: ${remaining} of ${budget}. Spent: ${spent}.\n"
+        "Previous outputs:\n{all_outputs}\n\n"
+        "Review server performance, uptime, and infrastructure costs. "
+        "Address any scaling needs, security patches, or DevOps improvements. "
+        "Report current monthly hosting/API costs.\n\n"
+        "If you need to purchase infrastructure or services, include:\n"
+        "[PROPOSAL]\nTitle: short name\nCost: $amount\n"
+        "Description: what and why\n[/PROPOSAL]"
+    ),
+    "finance": (
+        "Operations week {ops_round} for: {idea}. "
+        "Budget remaining: ${remaining} of ${budget}. Spent: ${spent}.\n"
+        "Transactions:\n{transactions}\n\n"
+        "Previous outputs:\n{all_outputs}\n\n"
+        "Analyze current burn rate, revenue (if any), and financial runway. "
+        "Flag any budget concerns and recommend adjustments. "
+        "Project how many more weeks the budget can sustain operations."
+    ),
+    "risk": (
+        "Operations week {ops_round} for: {idea}. "
+        "Budget remaining: ${remaining} of ${budget}. Spent: ${spent}.\n"
+        "Previous outputs:\n{all_outputs}\n\n"
+        "Monitor ongoing compliance, legal exposure, and operational risks. "
+        "Check for data privacy incidents, regulatory changes, or SLA breaches. "
+        "Report risk status and recommend mitigations.\n\n"
+        "If you need to propose compliance or risk mitigation spending, include:\n"
+        "[PROPOSAL]\nTitle: short name\nCost: $amount\n"
+        "Description: what and why\n[/PROPOSAL]"
+    ),
+}

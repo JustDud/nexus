@@ -90,16 +90,16 @@ class TestSettingsClass:
         assert s.chunk_size == 1024
         assert s.retrieval_top_k == 10
 
-    def test_settings_fails_without_api_keys(self):
+    def test_settings_fails_without_anthropic_key(self):
         from config import Settings
         # Clear env vars that might be set
         env_backup = {}
-        for key in ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]:
+        for key in ["ANTHROPIC_API_KEY"]:
             if key in os.environ:
                 env_backup[key] = os.environ.pop(key)
         try:
             with pytest.raises(Exception):
-                Settings()
+                Settings(_env_file=None)
         finally:
             os.environ.update(env_backup)
 

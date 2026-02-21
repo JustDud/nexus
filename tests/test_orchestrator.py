@@ -106,7 +106,7 @@ class TestTranslateEvent:
             data={"round": "deploying"},
         )
         msgs = translate_event(event)
-        assert msgs[0]["stage"] == "complete"
+        assert msgs[0]["stage"] == "operating"
 
     def test_simulation_completed(self):
         event = SimulationEvent(

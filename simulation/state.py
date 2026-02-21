@@ -10,6 +10,7 @@ class Phase(str, Enum):
     PLANNING = "planning"
     BUILDING = "building"
     DEPLOYING = "deploying"
+    OPERATING = "operating"
     COMPLETE = "complete"
 
 
@@ -46,3 +47,5 @@ class SimulationState:
     phase: Phase = Phase.RESEARCHING
     budget: BudgetTracker = field(default_factory=lambda: BudgetTracker(total=0))
     agent_outputs: dict[str, str] = field(default_factory=dict)
+    operations_round: int = 0
+    round_label: str = ""

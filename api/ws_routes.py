@@ -9,6 +9,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from simulation.events import EventType, SimulationEvent
 from simulation.orchestrator import run_simulation
 from simulation.session import create_session
+from simulation.voice import should_voice_event, synthesize_for_agent
 
 logger = logging.getLogger(__name__)
 
@@ -64,15 +65,57 @@ def translate_event(event: SimulationEvent) -> list[dict] | None:
             },
         ]
 
+    if et == EventType.PROPOSAL_CREATED:
+        return [{
+            "type": "proposal_created",
+            "proposalId": d.get("proposal_id", ""),
+            "title": d.get("title", ""),
+            "cost": d.get("cost", 0),
+            "description": d.get("description", ""),
+            "agentId": d.get("agent_id", ""),
+        }]
+
+    if et == EventType.DECISION_NEEDED:
+        return [{
+            "type": "approval_required",
+            "proposalId": d.get("proposal_id", ""),
+            "title": d.get("title", ""),
+            "cost": d.get("cost", 0),
+            "description": d.get("description", ""),
+            "agentId": d.get("agent_id", ""),
+            "agentName": d.get("agent_name", ""),
+        }]
+
+    if et == EventType.DECISION_MADE:
+        return [{
+            "type": "approval_resolved",
+            "proposalId": d.get("proposal_id", ""),
+            "approved": d.get("approved", False),
+            "reason": d.get("reason", ""),
+        }]
+
+    if et == EventType.ROUND_STARTED:
+        current_round = d.get("round", "")
+        if current_round == "operating":
+            return [{
+                "type": "ops_round",
+                "round": d.get("ops_round", 0),
+                "label": d.get("label", ""),
+            }]
+        return None
+
     if et == EventType.ROUND_COMPLETED:
+        current_round = d.get("round", "")
+        if current_round == "operating":
+            # Don't trigger stage_change for operating rounds
+            return None
         stage_map = {
             "researching": "planning",
             "planning": "building",
             "building": "deploying",
-            "deploying": "complete",
+            "deploying": "operating",
         }
-        current = d.get("round", "")
-        next_stage = stage_map.get(current)
+        next_stage = stage_map.get(current_round)
         if next_stage:
             return [{"type": "stage_change", "stage": next_stage}]
         return None
@@ -117,7 +160,8 @@ async def websocket_simulation(ws: WebSocket):
         sub_id, queue = session.event_bus.subscribe()
         task = asyncio.create_task(run_simulation(session))
 
-        try:
+        async def send_loop():
+            """Push events from event bus to WebSocket."""
             while True:
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=60.0)
@@ -129,9 +173,50 @@ async def websocket_simulation(ws: WebSocket):
                 if messages:
                     for msg in messages:
                         await ws.send_text(json.dumps(msg))
+                        # Voice synthesis for key events
+                        should_voice, voice_text = should_voice_event(msg["type"], msg)
+                        if should_voice:
+                            audio_b64 = await synthesize_for_agent(voice_text, msg.get("agentName", "narrator"))
+                            if audio_b64:
+                                await ws.send_text(json.dumps({
+                                    "type": "audio_narration",
+                                    "audio_base64": audio_b64,
+                                    "content_type": "audio/mpeg",
+                                    "text": voice_text,
+                                    "agentName": msg.get("agentName", "narrator"),
+                                }))
 
                 if event.event_type == EventType.SIMULATION_COMPLETED:
-                    break
+                    return
+
+        async def recv_loop():
+            """Receive user decisions from WebSocket."""
+            while True:
+                try:
+                    raw = await ws.receive_text()
+                    data = json.loads(raw)
+                    if data.get("type") == "decision":
+                        session.resolve_decision(
+                            approved=data.get("approved", False),
+                            reason=data.get("reason", ""),
+                        )
+                    elif data.get("type") == "stop_simulation":
+                        session.status = "stopping"
+                except WebSocketDisconnect:
+                    return
+                except Exception:
+                    continue
+
+        send_task = asyncio.create_task(send_loop())
+        recv_task = asyncio.create_task(recv_loop())
+
+        try:
+            _done, pending = await asyncio.wait(
+                [send_task, recv_task],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for t in pending:
+                t.cancel()
         finally:
             session.event_bus.unsubscribe(sub_id)
             if not task.done():

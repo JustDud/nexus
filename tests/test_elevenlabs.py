@@ -34,10 +34,14 @@ class TestElevenLabsRoutes:
         os.environ.pop("ELEVENLABS_API_KEY", None)
         os.environ.pop("ELEVENLABS_VOICE_ID", None)
 
-    def test_synthesize_not_configured_returns_503(self, client):
+    def test_synthesize_not_configured_returns_503(self, client, monkeypatch):
         get_settings.cache_clear()
         get_elevenlabs_service.cache_clear()
-        os.environ.pop("ELEVENLABS_API_KEY", None)
+        monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+        monkeypatch.setattr(
+            "integrations.elevenlabs.router.get_elevenlabs_service",
+            lambda: None,
+        )
 
         resp = client.post("/api/voice/elevenlabs/synthesize", json={"text": "Hello world"})
         assert resp.status_code == 503

@@ -12,6 +12,7 @@ import {
   type ActivityEntry,
   type Transaction,
   type SimulationStage,
+  type PendingApproval,
   AGENTS,
 } from '../types'
 import { generateId } from '../lib/utils'
@@ -36,6 +37,9 @@ const initialState: SimulationState = {
   activityLog: [],
   transactions: [],
   isRunning: false,
+  pendingApproval: null,
+  operationsRound: 0,
+  isPaused: false,
 }
 
 type Action =
@@ -49,6 +53,10 @@ type Action =
   | { type: 'ADD_ACTIVITY'; payload: Omit<ActivityEntry, 'id'> }
   | { type: 'ADD_TRANSACTION'; payload: Omit<Transaction, 'id'> }
   | { type: 'UPDATE_BUDGET'; payload: { spent: number; total?: number } }
+  | { type: 'SET_PENDING_APPROVAL'; payload: PendingApproval | null }
+  | { type: 'RESOLVE_APPROVAL'; payload: { proposalId: string; approved: boolean } }
+  | { type: 'SET_OPS_ROUND'; payload: number }
+  | { type: 'SET_PAUSED'; payload: boolean }
   | { type: 'RESET' }
 
 function reducer(state: SimulationState, action: Action): SimulationState {
@@ -152,6 +160,18 @@ function reducer(state: SimulationState, action: Action): SimulationState {
       }
     }
 
+    case 'SET_PENDING_APPROVAL':
+      return { ...state, pendingApproval: action.payload, isPaused: action.payload !== null }
+
+    case 'RESOLVE_APPROVAL':
+      return { ...state, pendingApproval: null, isPaused: false }
+
+    case 'SET_OPS_ROUND':
+      return { ...state, operationsRound: action.payload }
+
+    case 'SET_PAUSED':
+      return { ...state, isPaused: action.payload }
+
     case 'RESET':
       return { ...initialState }
 
@@ -173,6 +193,9 @@ interface SimulationContextValue {
   addTransaction: (tx: Omit<Transaction, 'id'>) => void
   updateBudget: (spent: number, total?: number) => void
   reset: () => void
+  setPendingApproval: (approval: PendingApproval | null) => void
+  resolveApproval: (proposalId: string, approved: boolean) => void
+  setOpsRound: (round: number) => void
 }
 
 const SimulationContext = createContext<SimulationContextValue | null>(null)
@@ -224,6 +247,20 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     []
   )
   const reset = useCallback(() => dispatch({ type: 'RESET' }), [])
+  const setPendingApproval = useCallback(
+    (approval: PendingApproval | null) =>
+      dispatch({ type: 'SET_PENDING_APPROVAL', payload: approval }),
+    []
+  )
+  const resolveApproval = useCallback(
+    (proposalId: string, approved: boolean) =>
+      dispatch({ type: 'RESOLVE_APPROVAL', payload: { proposalId, approved } }),
+    []
+  )
+  const setOpsRound = useCallback(
+    (round: number) => dispatch({ type: 'SET_OPS_ROUND', payload: round }),
+    []
+  )
 
   return (
     <SimulationContext.Provider
@@ -240,6 +277,9 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
         addTransaction,
         updateBudget,
         reset,
+        setPendingApproval,
+        resolveApproval,
+        setOpsRound,
       }}
     >
       {children}
