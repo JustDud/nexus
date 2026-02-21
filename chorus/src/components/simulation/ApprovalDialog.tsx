@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import ReactMarkdown from 'react-markdown'
 import { useSimulation } from '../../context/SimulationContext'
 import { AGENTS } from '../../types'
 
@@ -99,9 +100,30 @@ export function ApprovalDialog({ onDecide }: ApprovalDialogProps) {
                   >
                     {pending.title}
                   </h2>
-                  <p className="font-mono text-xs text-[#64748b] mt-2 leading-relaxed">
-                    {pending.description}
-                  </p>
+                  <div className="font-mono text-xs text-[#64748b] mt-2 leading-relaxed activity-markdown">
+                    <ReactMarkdown
+                      components={{
+                        p: ({ children }) => <p style={{ margin: '4px 0' }}>{children}</p>,
+                        a: ({ href, children }) => (
+                          <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'underline' }}>
+                            {children}
+                          </a>
+                        ),
+                        strong: ({ children }) => <strong style={{ color: '#e2e8f0', fontWeight: 700 }}>{children}</strong>,
+                        em: ({ children }) => <em style={{ color: '#cbd5e1' }}>{children}</em>,
+                        code: ({ children }) => (
+                          <code style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 4px', borderRadius: 3, fontSize: '0.9em' }}>
+                            {children}
+                          </code>
+                        ),
+                        ul: ({ children }) => <ul style={{ paddingLeft: 16, margin: '4px 0' }}>{children}</ul>,
+                        ol: ({ children }) => <ol style={{ paddingLeft: 16, margin: '4px 0' }}>{children}</ol>,
+                        li: ({ children }) => <li style={{ marginBottom: 2 }}>{children}</li>,
+                      }}
+                    >
+                      {pending.description}
+                    </ReactMarkdown>
+                  </div>
                 </div>
 
                 {/* Cost impact grid */}

@@ -7,15 +7,35 @@ import { useSimulation } from '../context/SimulationContext'
 import { formatCurrency } from '../lib/utils'
 import Dither from '../components/home/Dither/Dither'
 
-const MIN_BUDGET = 500
-const MAX_BUDGET = 5000
+const MIN_BUDGET = 100
+const MAX_BUDGET = 100_000
+
+// Log-scale helpers so the slider feels natural across a wide range
+function budgetToSlider(budget: number): number {
+  const minLog = Math.log(MIN_BUDGET)
+  const maxLog = Math.log(MAX_BUDGET)
+  return ((Math.log(budget) - minLog) / (maxLog - minLog)) * 100
+}
+
+function sliderToBudget(pct: number): number {
+  const minLog = Math.log(MIN_BUDGET)
+  const maxLog = Math.log(MAX_BUDGET)
+  const raw = Math.exp(minLog + (pct / 100) * (maxLog - minLog))
+  // Round to nice increments based on magnitude
+  if (raw < 500) return Math.round(raw / 50) * 50
+  if (raw < 5000) return Math.round(raw / 100) * 100
+  if (raw < 50000) return Math.round(raw / 1000) * 1000
+  return Math.round(raw / 5000) * 5000
+}
 
 export function HomePage() {
   const { setMission } = useSimulation()
   const navigate = useNavigate()
 
   const [idea, setIdea] = useState('')
-  const [budget, setBudget] = useState(1000)
+  const [budget, setBudget] = useState(5000)
+  const [isEditingBudget, setIsEditingBudget] = useState(false)
+  const [budgetInput, setBudgetInput] = useState('')
   const [file, setFile] = useState<{ name: string; content: string } | null>(null)
   const [isDragFlash, setIsDragFlash] = useState(false)
   const [isLaunching, setIsLaunching] = useState(false)
@@ -45,7 +65,20 @@ export function HomePage() {
     setTimeout(() => navigate('/simulation'), 900)
   }
 
-  const budgetPct = ((budget - MIN_BUDGET) / (MAX_BUDGET - MIN_BUDGET)) * 100
+  const budgetPct = budgetToSlider(budget)
+
+  const handleBudgetEditStart = () => {
+    setBudgetInput(String(budget))
+    setIsEditingBudget(true)
+  }
+
+  const handleBudgetEditCommit = () => {
+    const parsed = parseInt(budgetInput.replace(/[^0-9]/g, ''), 10)
+    if (!isNaN(parsed)) {
+      setBudget(Math.max(MIN_BUDGET, Math.min(MAX_BUDGET, parsed)))
+    }
+    setIsEditingBudget(false)
+  }
 
   return (
     <div
@@ -264,19 +297,48 @@ export function HomePage() {
               >
                 BUDGET
               </span>
-              <span
-                style={{
-                  fontFamily: "'VT323', monospace",
-                  fontSize: 24,
-                  color: '#3b82f6',
-                  lineHeight: 1,
-                }}
-              >
-                {formatCurrency(budget)}
-              </span>
+              {isEditingBudget ? (
+                <input
+                  autoFocus
+                  value={budgetInput}
+                  onChange={(e) => setBudgetInput(e.target.value)}
+                  onBlur={handleBudgetEditCommit}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleBudgetEditCommit()
+                    if (e.key === 'Escape') setIsEditingBudget(false)
+                  }}
+                  style={{
+                    fontFamily: "'VT323', monospace",
+                    fontSize: 24,
+                    color: '#3b82f6',
+                    lineHeight: 1,
+                    background: 'rgba(59,130,246,0.08)',
+                    border: '1px solid rgba(59,130,246,0.4)',
+                    outline: 'none',
+                    width: 100,
+                    textAlign: 'right',
+                    padding: '0 4px',
+                  }}
+                />
+              ) : (
+                <span
+                  onClick={handleBudgetEditStart}
+                  title="Click to enter custom amount"
+                  style={{
+                    fontFamily: "'VT323', monospace",
+                    fontSize: 24,
+                    color: '#3b82f6',
+                    lineHeight: 1,
+                    cursor: 'pointer',
+                    borderBottom: '1px dashed rgba(59,130,246,0.3)',
+                  }}
+                >
+                  {formatCurrency(budget)}
+                </span>
+              )}
             </div>
 
-            {/* Slider track */}
+            {/* Slider track (log scale) */}
             <div style={{ position: 'relative' }}>
               <div
                 style={{
@@ -297,11 +359,11 @@ export function HomePage() {
               </div>
               <input
                 type="range"
-                min={MIN_BUDGET}
-                max={MAX_BUDGET}
-                step={100}
-                value={budget}
-                onChange={(e) => setBudget(Number(e.target.value))}
+                min={0}
+                max={100}
+                step={0.5}
+                value={budgetPct}
+                onChange={(e) => setBudget(sliderToBudget(Number(e.target.value)))}
                 style={{
                   position: 'absolute',
                   inset: 0,
@@ -316,10 +378,10 @@ export function HomePage() {
 
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 8, color: 'rgba(100,116,139,0.4)' }}>
-                $500
+                $100
               </span>
               <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 8, color: 'rgba(100,116,139,0.4)' }}>
-                $5k
+                $100k
               </span>
             </div>
           </div>
