@@ -6,6 +6,7 @@ Entry point for the FastAPI application.
 from fastapi import FastAPI
 
 from api.routes import router
+from api.simulation_routes import sim_router
 
 app = FastAPI(
     title="Ghost Founder",
@@ -14,6 +15,7 @@ app = FastAPI(
 )
 
 app.include_router(router, prefix="/api")
+app.include_router(sim_router, prefix="/api")
 
 
 @app.get("/health")
