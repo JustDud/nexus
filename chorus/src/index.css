@@ -100,3 +100,25 @@ html, body, #root {
 .font-terminal { font-family: "Share Tech Mono", monospace !important; }
 .font-vt323    { font-family: "VT323", monospace !important; }
 .font-space    { font-family: "Space Mono", monospace !important; }
+
+/* ── HOME CARD AMBIENT GLOW ─────────────────── */
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.7; }
+  50%       { opacity: 1.0; }
+}
+.nexus-card-glow {
+  animation: glowPulse 4s ease-in-out infinite;
+}
+
+/* ── MISSION TEXTAREA PLACEHOLDER ───────────── */
+.nexus-mission-textarea::placeholder {
+  color: #8892A4;
+  opacity: 1;
+}
+
+/* ── LAUNCH BUTTON HOVER ─────────────────────── */
+.nexus-launch-btn:not(:disabled):hover {
+  border-color: rgba(150, 180, 255, 0.6) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 24px rgba(80, 130, 255, 0.2) !important;
+}
