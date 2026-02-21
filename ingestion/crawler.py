@@ -112,9 +112,15 @@ class BasicCrawler:
             return self._robots_cache[domain]
 
         parser = robotparser.RobotFileParser()
-        parser.set_url(f"https://{domain}/robots.txt")
+        robots_url = f"https://{domain}/robots.txt"
+        parser.set_url(robots_url)
         try:
-            parser.read()
+            timeout = max(2.0, min(float(self.timeout_seconds), 8.0))
+            with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+                response = client.get(robots_url)
+                if response.status_code >= 400 or not response.text.strip():
+                    raise RuntimeError("robots_unavailable")
+                parser.parse(response.text.splitlines())
         except Exception:
             # If robots cannot be fetched, default to allow.
             parser = robotparser.RobotFileParser()

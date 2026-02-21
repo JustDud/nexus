@@ -4,6 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, Field
+from starlette.concurrency import run_in_threadpool
 
 from ingestion.control import (
     get_run,
@@ -55,7 +56,8 @@ class ManualImportDirectoryRequest(BaseModel):
 @ingestion_router.post("/ingestion/start")
 async def start_ingestion_run(req: StartIngestionRequest) -> dict[str, Any]:
     try:
-        return start_ingestion(
+        return await run_in_threadpool(
+            start_ingestion,
             source_name=req.source_name,
             index_after_crawl=req.index_after_crawl,
         )
@@ -68,7 +70,8 @@ async def start_ingestion_run(req: StartIngestionRequest) -> dict[str, Any]:
 @ingestion_router.post("/ingestion/start-batch")
 async def start_ingestion_runs_batch(req: StartIngestionBatchRequest) -> dict[str, Any]:
     try:
-        return start_ingestion_batch(
+        return await run_in_threadpool(
+            start_ingestion_batch,
             source_names=req.source_names,
             only_active=req.only_active,
             index_after_crawl=req.index_after_crawl,
@@ -84,7 +87,7 @@ async def get_ingestion_runs(
     source_name: str | None = Query(default=None),
 ) -> dict[str, Any]:
     try:
-        runs = list_runs(limit=limit, source_name=source_name)
+        runs = await run_in_threadpool(list_runs, limit=limit, source_name=source_name)
         return {"runs": runs, "count": len(runs)}
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
@@ -95,7 +98,7 @@ async def get_ingestion_sources(
     only_active: bool = Query(default=False),
 ) -> dict[str, Any]:
     try:
-        sources = list_sources(only_active=only_active)
+        sources = await run_in_threadpool(list_sources, only_active=only_active)
         return {"sources": sources, "count": len(sources)}
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
@@ -105,7 +108,7 @@ async def get_ingestion_sources(
 async def onboard_ingestion_source(req: OnboardSourceRequest) -> dict[str, Any]:
     try:
         payload = req.model_dump()
-        return onboard_source(payload)
+        return await run_in_threadpool(onboard_source, payload)
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 
@@ -113,7 +116,8 @@ async def onboard_ingestion_source(req: OnboardSourceRequest) -> dict[str, Any]:
 @ingestion_router.post("/ingestion/import/local")
 async def import_ingestion_directory(req: ManualImportDirectoryRequest) -> dict[str, Any]:
     try:
-        return import_local_directory(
+        return await run_in_threadpool(
+            import_local_directory,
             directory=req.directory,
             source_name=req.source_name,
             topic=req.topic,
@@ -129,7 +133,7 @@ async def import_ingestion_directory(req: ManualImportDirectoryRequest) -> dict[
 @ingestion_router.get("/ingestion/runs/{run_id}")
 async def get_ingestion_run(run_id: int) -> dict[str, Any]:
     try:
-        run = get_run(run_id=run_id)
+        run = await run_in_threadpool(get_run, run_id=run_id)
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 
@@ -144,7 +148,7 @@ async def get_ingestion_run_errors(
     limit: int = Query(default=200, ge=1, le=1000),
 ) -> dict[str, Any]:
     try:
-        errors = get_run_errors(run_id=run_id, limit=limit)
+        errors = await run_in_threadpool(get_run_errors, run_id=run_id, limit=limit)
         return {"run_id": run_id, "errors": errors, "count": len(errors)}
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
@@ -153,7 +157,7 @@ async def get_ingestion_run_errors(
 @ingestion_router.get("/ingestion/metrics")
 async def get_ingestion_metrics() -> dict[str, Any]:
     try:
-        metrics = ingestion_metrics()
+        metrics = await run_in_threadpool(ingestion_metrics)
         return {"metrics": metrics}
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
@@ -162,7 +166,7 @@ async def get_ingestion_metrics() -> dict[str, Any]:
 @ingestion_router.get("/ingestion/health")
 async def get_ingestion_health() -> dict[str, Any]:
     try:
-        return ingestion_health()
+        return await run_in_threadpool(ingestion_health)
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 
@@ -172,6 +176,6 @@ async def get_source_freshness(
     max_age_hours: int = Query(default=72, ge=1, le=24 * 60),
 ) -> dict[str, Any]:
     try:
-        return source_freshness(max_age_hours=max_age_hours)
+        return await run_in_threadpool(source_freshness, max_age_hours=max_age_hours)
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc

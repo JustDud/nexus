@@ -6,6 +6,7 @@ from dataclasses import asdict
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from agents.definitions import AGENT_CONFIGS, get_agent
 from rag.ingest import ingest_documents, ingest_text
@@ -96,7 +97,8 @@ async def query_agent_direct(agent_name: str, req: QueryRequest):
 async def ingest_from_directory(req: IngestDirectoryRequest):
     """Ingest all documents from a local directory into the vector store."""
     try:
-        result = ingest_documents(
+        result = await run_in_threadpool(
+            ingest_documents,
             directory=req.directory,
             domain=req.domain,
             chunk_size=req.chunk_size,
@@ -110,14 +112,17 @@ async def ingest_from_directory(req: IngestDirectoryRequest):
 @router.post("/rag/ingest/text")
 async def ingest_raw_text(req: IngestTextRequest):
     """Ingest raw text directly into the vector store."""
-    result = ingest_text(text=req.text, domain=req.domain, source_name=req.source_name)
+    result = await run_in_threadpool(
+        ingest_text, text=req.text, domain=req.domain, source_name=req.source_name
+    )
     return result
 
 
 @router.post("/rag/search")
 async def search_knowledge_base(req: SearchRequest):
     """Search the knowledge base directly (useful for debugging)."""
-    results = _retriever.search(
+    results = await run_in_threadpool(
+        _retriever.search,
         query=req.query,
         domain=req.domain,
         top_k=req.top_k,
