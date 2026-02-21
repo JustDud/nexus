@@ -1,0 +1,117 @@
+"""Tests for configuration loading — no API keys needed for most tests."""
+
+import os
+import pytest
+from functools import lru_cache
+
+
+class TestSettingsClass:
+    def test_settings_class_importable(self):
+        from config import Settings
+        assert Settings is not None
+
+    def test_settings_has_all_expected_fields(self):
+        from config import Settings
+        fields = Settings.model_fields
+        expected = [
+            "anthropic_api_key",
+            "openai_api_key",
+            "default_model",
+            "embedding_model",
+            "embedding_dimensions",
+            "chunk_size",
+            "chunk_overlap",
+            "retrieval_top_k",
+            "chroma_persist_dir",
+            "chroma_collection_name",
+        ]
+        for field_name in expected:
+            assert field_name in fields, f"Missing field: {field_name}"
+
+    def test_settings_defaults(self):
+        from config import Settings
+        # Create with only required fields
+        s = Settings(anthropic_api_key="test", openai_api_key="test")
+        assert s.default_model == "claude-sonnet-4-6"
+        assert s.embedding_model == "text-embedding-3-small"
+        assert s.embedding_dimensions == 1536
+        assert s.chunk_size == 512
+        assert s.chunk_overlap == 50
+        assert s.retrieval_top_k == 5
+        assert s.chroma_persist_dir == "./chroma_data"
+        assert s.chroma_collection_name == "ghost_founder"
+
+    def test_settings_override(self):
+        from config import Settings
+        s = Settings(
+            anthropic_api_key="test",
+            openai_api_key="test",
+            chunk_size=1024,
+            retrieval_top_k=10,
+        )
+        assert s.chunk_size == 1024
+        assert s.retrieval_top_k == 10
+
+    def test_settings_fails_without_api_keys(self):
+        from config import Settings
+        # Clear env vars that might be set
+        env_backup = {}
+        for key in ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"]:
+            if key in os.environ:
+                env_backup[key] = os.environ.pop(key)
+        try:
+            with pytest.raises(Exception):
+                Settings()
+        finally:
+            os.environ.update(env_backup)
+
+    def test_settings_from_env_vars(self):
+        from config import Settings
+        old_ant = os.environ.get("ANTHROPIC_API_KEY")
+        old_oai = os.environ.get("OPENAI_API_KEY")
+        os.environ["ANTHROPIC_API_KEY"] = "sk-ant-test123"
+        os.environ["OPENAI_API_KEY"] = "sk-test456"
+        os.environ["CHUNK_SIZE"] = "256"
+        try:
+            s = Settings()
+            assert s.anthropic_api_key == "sk-ant-test123"
+            assert s.openai_api_key == "sk-test456"
+            assert s.chunk_size == 256
+        finally:
+            # Restore original values (set by conftest)
+            if old_ant is not None:
+                os.environ["ANTHROPIC_API_KEY"] = old_ant
+            if old_oai is not None:
+                os.environ["OPENAI_API_KEY"] = old_oai
+            os.environ.pop("CHUNK_SIZE", None)
+
+
+class TestGetSettings:
+    def test_get_settings_is_callable(self):
+        from config import get_settings
+        assert callable(get_settings)
+
+    def test_get_settings_is_cached(self):
+        from config import get_settings
+        # The function uses lru_cache, verify it's wrapped
+        assert hasattr(get_settings, "cache_info")
+
+    def test_get_settings_returns_settings_with_env(self):
+        from config import get_settings, Settings
+        # Clear the cache first
+        get_settings.cache_clear()
+        old_ant = os.environ.get("ANTHROPIC_API_KEY")
+        old_oai = os.environ.get("OPENAI_API_KEY")
+        os.environ["ANTHROPIC_API_KEY"] = "test-key"
+        os.environ["OPENAI_API_KEY"] = "test-key"
+        try:
+            s = get_settings()
+            assert isinstance(s, Settings)
+            assert s.anthropic_api_key == "test-key"
+        finally:
+            # Restore originals and re-cache with them
+            if old_ant is not None:
+                os.environ["ANTHROPIC_API_KEY"] = old_ant
+            if old_oai is not None:
+                os.environ["OPENAI_API_KEY"] = old_oai
+            get_settings.cache_clear()
