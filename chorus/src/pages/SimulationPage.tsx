@@ -9,7 +9,7 @@ import { BudgetBar } from '../components/simulation/BudgetBar'
 import { StatusBar } from '../components/simulation/StatusBar'
 
 // Change this to your backend WS URL, or null to always use mock
-const WS_URL: string | null = null // e.g. 'ws://localhost:8000/ws/simulation'
+const WS_URL: string | null = `ws://${window.location.host}/ws/simulation`
 
 export function SimulationPage() {
   const { state, tickElapsed } = useSimulation()

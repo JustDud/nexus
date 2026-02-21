@@ -2,6 +2,7 @@
 
 from simulation.events import EventBus, EventType, SimulationEvent
 from simulation.proposals import AgentVote, Proposal
+from simulation.state import BudgetTracker, Phase, SimulationState, Transaction
 
 __all__ = [
     "EventBus",
@@ -9,4 +10,8 @@ __all__ = [
     "SimulationEvent",
     "Proposal",
     "AgentVote",
+    "BudgetTracker",
+    "Phase",
+    "SimulationState",
+    "Transaction",
 ]

@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     # API keys
     anthropic_api_key: str
-    openai_api_key: str
+    openai_api_key: str = ""
 
     # Model settings
     default_model: str = "claude-sonnet-4-6"

@@ -9,6 +9,7 @@ interface WSEvent {
 
 export function useWebSocket(url: string | null) {
   const {
+    state,
     setAgentStatus,
     setAgentThought,
     clearAgentThought,
@@ -16,6 +17,7 @@ export function useWebSocket(url: string | null) {
     addTransaction,
     updateBudget,
     setStage,
+    setRunning,
   } = useSimulation()
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -27,8 +29,18 @@ export function useWebSocket(url: string | null) {
     const ws = new WebSocket(url)
     wsRef.current = ws
 
-    ws.onopen = () => setConnected(true)
-    ws.onclose = () => setConnected(false)
+    ws.onopen = () => {
+      setConnected(true)
+      setRunning(true)
+      ws.send(JSON.stringify({
+        idea: state.mission,
+        budget: state.totalBudget,
+      }))
+    }
+    ws.onclose = () => {
+      setConnected(false)
+      setRunning(false)
+    }
     ws.onerror = () => setConnected(false)
 
     ws.onmessage = (event) => {
