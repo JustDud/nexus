@@ -9,9 +9,57 @@ import { BudgetBar } from '../components/simulation/BudgetBar'
 import { StatusBar } from '../components/simulation/StatusBar'
 import { ApprovalDialog } from '../components/simulation/ApprovalDialog'
 import { useAudioPlayer } from '../hooks/useAudioPlayer'
+import Prism from '../components/simulation/Prism/Prism'
 
 // Change this to your backend WS URL, or null to always use mock
 const WS_URL: string | null = `ws://${window.location.host}/ws/simulation`
+
+function PrismBackground({ danger }: { danger: boolean }) {
+  return (
+    <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
+      {/* Prism WebGL layer */}
+      <div style={{ position: 'absolute', inset: 0 }}>
+        <Prism
+          animationType="rotate"
+          timeScale={0.3}
+          height={3.5}
+          baseWidth={5.5}
+          scale={3.6}
+          hueShift={0}
+          colorFrequency={1}
+          noise={0.3}
+          glow={0.6}
+          bloom={0.5}
+          transparent={true}
+        />
+      </div>
+
+      {/* Dark overlay — keeps content legible */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          background: danger
+            ? 'rgba(4,2,10,0.72)'
+            : 'rgba(5,3,12,0.76)',
+          transition: 'background 800ms ease',
+        }}
+      />
+
+      {/* Grid overlay */}
+      <div
+        className="absolute inset-0"
+        style={{
+          backgroundImage: `
+            linear-gradient(rgba(255,255,255,0.012) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px)
+          `,
+          backgroundSize: '32px 32px',
+        }}
+      />
+    </div>
+  )
+}
 
 export function SimulationPage() {
   const { state, tickElapsed } = useSimulation()
@@ -19,17 +67,12 @@ export function SimulationPage() {
   const { connected, sendDecision, stopSimulation } = useWebSocket(WS_URL)
   const { isMuted, setIsMuted, isPlaying } = useAudioPlayer()
 
-  // Redirect if no mission set
   useEffect(() => {
-    if (!state.mission) {
-      navigate('/')
-    }
+    if (!state.mission) navigate('/')
   }, [state.mission, navigate])
 
-  // Use mock simulation when WS not connected
   useMockSimulation(!connected)
 
-  // Clock tick
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null)
   useEffect(() => {
     if (!state.isRunning) return
@@ -39,16 +82,17 @@ export function SimulationPage() {
 
   return (
     <div
-      className="flex flex-col min-h-screen"
+      className="flex flex-col"
       data-danger={String(state.dangerMode)}
       style={{
-        background: state.dangerMode
-          ? 'linear-gradient(180deg, rgba(239,68,68,0.04) 0%, #080810 100%)'
-          : '#080810',
-        transition: 'background 800ms ease',
+        minHeight: '100vh',
+        background: '#05050a',
+        position: 'relative',
       }}
     >
-      {/* Status bar — sticky top */}
+      <PrismBackground danger={state.dangerMode} />
+
+      {/* Status bar */}
       <div className="sticky top-0 z-20">
         <StatusBar
           isMuted={isMuted}
@@ -57,21 +101,18 @@ export function SimulationPage() {
         />
       </div>
 
-      {/* Main content */}
-      <div className="flex flex-1 overflow-hidden" style={{ minHeight: 0 }}>
-        {/* Agent stage — 65% */}
+      {/* Main */}
+      <div className="flex flex-1 overflow-hidden" style={{ minHeight: 0, position: 'relative', zIndex: 1 }}>
         <div className="flex-1 p-4 overflow-hidden" style={{ minHeight: 0 }}>
           <AgentStage />
         </div>
-
-        {/* Activity feed — 35% */}
-        <div className="w-[340px] flex-shrink-0 p-4 overflow-hidden" style={{ minHeight: 0 }}>
+        <div className="w-[360px] flex-shrink-0 p-4 pl-0 overflow-hidden" style={{ minHeight: 0 }}>
           <ActivityFeed />
         </div>
       </div>
 
-      {/* Budget bar — sticky bottom */}
-      <div className="flex-shrink-0 p-4 pt-0">
+      {/* Budget bar */}
+      <div className="flex-shrink-0" style={{ position: 'relative', zIndex: 1 }}>
         <BudgetBar />
       </div>
 

@@ -2,130 +2,237 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { AGENTS } from '../../types'
 import { useSimulation } from '../../context/SimulationContext'
-import { AgentShape } from './AgentShape'
-import { ThoughtStream } from './ThoughtStream'
+import AgentShape from './shapes/AgentShape'
+import { TerminalPanel } from './TerminalPanel'
 import { AgentDetailModal } from './AgentDetailModal'
-import { GlassPanel } from '../shared/GlassPanel'
-import { cn } from '../../lib/utils'
-import type { AgentId } from '../../types'
+import type { AgentId, AgentStatus } from '../../types'
 
-const STATUS_LABEL: Record<string, string> = {
-  idle: 'standing by',
-  thinking: 'thinking...',
-  acting: 'executing',
-  blocked: 'BLOCKED',
-  complete: 'complete',
+// Holographic palette — overrides raw agent colors for card chrome
+const CARD_COLORS: Record<AgentId, string> = {
+  product: '#a78bfa', // soft violet
+  tech:    '#67e8f9', // soft cyan
+  ops:     '#e879f9', // soft magenta
+  finance: '#fda4af', // soft rose
 }
 
-const STATUS_DOT: Record<string, string> = {
-  idle: 'bg-[#64748b]',
-  thinking: 'bg-[#3b82f6] animate-pulse',
-  acting: 'bg-[#22c55e] animate-pulse',
-  blocked: 'bg-[#ef4444]',
-  complete: 'bg-[#22c55e]',
+/* ── Corner bracket ───────────────────────────────────────────── */
+function Corner({ pos, color }: { pos: 'tl' | 'tr' | 'bl' | 'br'; color: string }) {
+  const top  = pos === 'tl' || pos === 'tr'
+  const left = pos === 'tl' || pos === 'bl'
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        width: 16,
+        height: 16,
+        top:    top  ? 0 : undefined,
+        bottom: !top ? 0 : undefined,
+        left:   left  ? 0 : undefined,
+        right:  !left ? 0 : undefined,
+        borderTop:    top    ? `2px solid ${color}99` : undefined,
+        borderBottom: !top   ? `2px solid ${color}99` : undefined,
+        borderLeft:   left   ? `2px solid ${color}99` : undefined,
+        borderRight:  !left  ? `2px solid ${color}99` : undefined,
+        pointerEvents: 'none',
+        zIndex: 3,
+      }}
+    />
+  )
 }
 
-function AgentPanel({ agentId, onOpen }: { agentId: AgentId; onOpen: () => void }) {
+/* ── Status dot ───────────────────────────────────────────────── */
+const STATUS_TEXT: Record<AgentStatus, string> = {
+  idle:     'standing by',
+  thinking: 'processing...',
+  acting:   'executing',
+  blocked:  'BLOCKED',
+  complete: 'complete ✓',
+}
+
+function StatusDot({ status, color }: { status: AgentStatus; color: string }) {
+  const base: React.CSSProperties = {
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    flexShrink: 0,
+  }
+  if (status === 'idle')     return <div style={{ ...base, background: '#1e293b' }} />
+  if (status === 'thinking') return <div className="dot-thinking" style={{ ...base, background: color, boxShadow: `0 0 8px ${color}80` }} />
+  if (status === 'acting')   return <div className="dot-acting"   style={{ ...base, background: '#2dd4bf', boxShadow: '0 0 8px rgba(45,212,191,0.6)' }} />
+  if (status === 'blocked')  return <div style={{ ...base, background: '#fb7185', boxShadow: '0 0 8px rgba(251,113,133,0.7)' }} />
+  if (status === 'complete') return <div style={{ ...base, background: '#34d399', boxShadow: '0 0 8px rgba(52,211,153,0.5)' }} />
+  return null
+}
+
+/* ── Agent card ───────────────────────────────────────────────── */
+function AgentCard({ agentId, onOpen }: { agentId: AgentId; onOpen: () => void }) {
   const { state } = useSimulation()
-  const def = AGENTS.find((a) => a.id === agentId)!
+  const def        = AGENTS.find((a) => a.id === agentId)!
   const agentState = state.agents.find((a) => a.id === agentId)!
+  const isBlocked  = agentState.status === 'blocked'
 
-  const lastAction = agentState.completedActions[agentState.completedActions.length - 1]
+  // Holographic card color — overrides raw def.color for chrome elements
+  const cardColor = CARD_COLORS[agentId]
+
+  const borderColor = isBlocked
+    ? 'rgba(251,113,133,0.45)'
+    : `${cardColor}2e`
+
+  const hoverBorder = isBlocked
+    ? 'rgba(251,113,133,0.75)'
+    : `${cardColor}70`
+
+  const hoverShadow = isBlocked
+    ? '0 0 24px rgba(251,113,133,0.12)'
+    : `0 0 24px ${cardColor}10`
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.92 }}
+      initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.5, ease: 'easeOut' }}
-      className="relative"
+      transition={{ duration: 0.4, ease: 'easeOut' }}
+      className="relative h-full"
+      style={{ cursor: 'pointer' }}
+      onClick={onOpen}
+      whileHover={{ scale: 1.008 }}
     >
-      <GlassPanel
-        onClick={onOpen}
-        danger={agentState.status === 'blocked'}
-        className="h-full flex flex-col items-center py-6 px-4 gap-3 group"
+      {/* Card shell */}
+      <div
+        className="relative h-full overflow-visible"
+        style={{
+          background: 'rgba(10,8,22,0.82)',
+          border: `1px solid ${borderColor}`,
+          borderRadius: 0,
+          display: 'flex',
+          flexDirection: 'row',
+          transition: 'border-color 200ms ease, box-shadow 200ms ease',
+        }}
+        onMouseEnter={e => {
+          const el = e.currentTarget as HTMLDivElement
+          el.style.borderColor = hoverBorder
+          el.style.boxShadow   = hoverShadow
+        }}
+        onMouseLeave={e => {
+          const el = e.currentTarget as HTMLDivElement
+          el.style.borderColor = borderColor
+          el.style.boxShadow   = 'none'
+        }}
       >
-        {/* Thought stream floats above shape */}
-        <div className="relative w-full">
-          <div className="absolute inset-x-0 bottom-full">
-            <ThoughtStream
-              fragments={agentState.currentThought}
-              color={def.color}
-              visible={agentState.status === 'thinking' && agentState.currentThought.length > 0}
-            />
-          </div>
-          <AgentShape
-            shape={def.shape}
-            color={def.color}
-            status={agentState.status}
-            size={130}
-          />
-        </div>
+        {/* Corner brackets use holographic color */}
+        <Corner pos="tl" color={cardColor} />
+        <Corner pos="tr" color={cardColor} />
+        <Corner pos="bl" color={cardColor} />
+        <Corner pos="br" color={cardColor} />
 
-        {/* Agent label */}
-        <div className="text-center space-y-1 w-full">
+        {/* Scanline */}
+        <div
+          className="nexus-scanline"
+          style={{
+            background: `linear-gradient(90deg, transparent, ${cardColor} 40%, transparent)`,
+            opacity: 0.1,
+          }}
+        />
+
+        {/* LEFT PANEL — 40% */}
+        <div
+          style={{
+            width: '40%',
+            flexShrink: 0,
+            background: `linear-gradient(160deg, rgba(${hexToRgb(cardColor)},0.04) 0%, rgba(0,0,0,0.25) 100%)`,
+            borderRight: `1px solid ${cardColor}20`,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+            padding: '16px 8px',
+            position: 'relative',
+            zIndex: 1,
+          }}
+        >
+          {/* 3D shape */}
+          <AgentShape
+            agentId={def.id}
+            state={agentState.status}
+            size={180}
+          />
+
+          {/* Agent name */}
           <div
-            className="text-xs font-bold tracking-widest uppercase"
-            style={{ color: def.color, fontFamily: 'Space Grotesk, sans-serif' }}
+            style={{
+              fontFamily: "'Space Mono', monospace",
+              fontWeight: 700,
+              fontSize: 11,
+              color: cardColor,
+              letterSpacing: '0.15em',
+              textTransform: 'uppercase',
+              textAlign: 'center',
+              textShadow: `0 0 12px ${cardColor}60`,
+            }}
           >
             {def.name}
           </div>
-          <div className="flex items-center justify-center gap-1.5">
-            <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', STATUS_DOT[agentState.status])} />
-            <span className="font-mono text-[10px] text-[#64748b]">
-              {STATUS_LABEL[agentState.status]}
+
+          {/* Status row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <StatusDot status={agentState.status} color={cardColor} />
+            <span
+              style={{
+                fontFamily: "'Share Tech Mono', monospace",
+                fontSize: 12,
+                color: isBlocked ? '#fb7185' : 'rgba(148,163,184,0.75)',
+              }}
+            >
+              {STATUS_TEXT[agentState.status]}
             </span>
           </div>
         </div>
 
-        {/* Last action chip */}
-        {lastAction && (
-          <motion.div
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="w-full"
-          >
-            <div
-              className="w-full rounded-full px-3 py-1 text-center font-mono text-[9px] truncate border"
-              style={{
-                borderColor: `${def.color}30`,
-                background: `${def.color}10`,
-                color: def.color,
-              }}
-            >
-              ✓ {lastAction.description}
-              {lastAction.cost > 0 && ` — $${lastAction.cost}`}
-            </div>
-          </motion.div>
-        )}
-
-        {/* Click hint */}
-        <div className="absolute inset-0 rounded-xl ring-0 group-hover:ring-1 transition-all duration-200"
-          style={{ ringColor: `${def.color}40` } as React.CSSProperties}
-        />
-      </GlassPanel>
+        {/* RIGHT PANEL — 60% */}
+        <div
+          style={{
+            flex: 1,
+            overflow: 'hidden',
+            position: 'relative',
+            zIndex: 1,
+          }}
+        >
+          <TerminalPanel
+            agentId={agentId}
+            status={agentState.status}
+            color={cardColor}
+          />
+        </div>
+      </div>
     </motion.div>
   )
 }
 
+// Converts a 6-digit hex color to "r,g,b" for use in rgba()
+function hexToRgb(hex: string): string {
+  const h = hex.replace('#', '')
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  return `${r},${g},${b}`
+}
+
+/* ── 2×2 grid ─────────────────────────────────────────────────── */
 export function AgentStage() {
   const [openAgent, setOpenAgent] = useState<AgentId | null>(null)
 
   return (
     <>
-      <div className="grid grid-cols-2 grid-rows-2 gap-4 h-full">
+      <div className="grid grid-cols-2 grid-rows-2 gap-3 h-full">
         {AGENTS.map((def) => (
-          <AgentPanel
+          <AgentCard
             key={def.id}
             agentId={def.id}
             onOpen={() => setOpenAgent(def.id)}
           />
         ))}
       </div>
-
-      <AgentDetailModal
-        agentId={openAgent}
-        onClose={() => setOpenAgent(null)}
-      />
+      <AgentDetailModal agentId={openAgent} onClose={() => setOpenAgent(null)} />
     </>
   )
 }

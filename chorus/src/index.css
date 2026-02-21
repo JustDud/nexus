@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #080810;
-  --color-surface: #0f0f1a;
-  --color-border: #1a1a2e;
+  --color-bg: #05050a;
+  --color-surface: #0a0a12;
+  --color-border: #111;
   --color-accent: #3b82f6;
   --color-success: #22c55e;
   --color-warning: #f59e0b;
@@ -12,30 +12,91 @@
   --color-agent-tech: #22c55e;
   --color-agent-ops: #8b5cf6;
   --color-agent-finance: #ef4444;
-  --font-sans: "Space Grotesk", sans-serif;
-  --font-mono: "JetBrains Mono", monospace;
+  --font-sans: "Space Mono", monospace;
+  --font-mono: "Share Tech Mono", monospace;
+  --font-display: "Orbitron", sans-serif;
 }
 
-*, *::before, *::after {
-  box-sizing: border-box;
-}
+*, *::before, *::after { box-sizing: border-box; }
 
 html, body, #root {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background-color: #080810;
+  background-color: #05050a;
   color: #f8fafc;
-  font-family: "Space Grotesk", sans-serif;
+  font-family: "Space Mono", monospace;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 ::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: #0f0f1a; }
-::-webkit-scrollbar-thumb { background: #1a1a2e; border-radius: 2px; }
+::-webkit-scrollbar-track { background: #05050a; }
+::-webkit-scrollbar-thumb { background: #111; border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: #3b82f6; }
 
+/* ── SCANLINE ─────────────────────────────── */
+@keyframes scanline {
+  0%   { top: 0%; }
+  100% { top: 100%; }
+}
+.nexus-scanline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  pointer-events: none;
+  z-index: 10;
+  animation: scanline 4s linear infinite;
+}
+
+/* ── STATUS BAR TEXTURE ──────────────────── */
+.nexus-status-bar {
+  position: relative;
+}
+.nexus-status-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255,255,255,0.015) 2px,
+    rgba(255,255,255,0.015) 4px
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── STATE DOT PULSES ──────────────────────── */
+@keyframes pulse-slow {
+  0%, 100% { transform: scale(1);   opacity: 1; }
+  50%       { transform: scale(1.6); opacity: 0.6; }
+}
+@keyframes pulse-fast {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.5); }
+}
+.dot-thinking { animation: pulse-slow 1.5s ease-in-out infinite; }
+.dot-acting   { animation: pulse-fast 0.5s ease-in-out infinite; }
+
+/* ── CURSOR BLINK ──────────────────────── */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+.nexus-cursor {
+  animation: cursor-blink 0.9s linear infinite;
+}
+
+/* ── DANGER MODE ───────────────────────────── */
 [data-danger="true"] {
   transition: background-color 800ms ease, border-color 800ms ease;
 }
+
+/* ── FONT UTILITIES ─────────────────────────── */
+.font-display  { font-family: "Orbitron", sans-serif !important; }
+.font-terminal { font-family: "Share Tech Mono", monospace !important; }
+.font-vt323    { font-family: "VT323", monospace !important; }
+.font-space    { font-family: "Space Mono", monospace !important; }

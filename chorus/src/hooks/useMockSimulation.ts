@@ -20,44 +20,9 @@ export function useMockSimulation(enabled: boolean) {
   } = useSimulation()
 
   const startedRef = useRef(false)
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const elapsed = useRef(0)
-  const eventsRef = useRef<SimEvent[]>([])
-
-  const emit = (
-    agentId: AgentId,
-    message: string,
-    type: 'thought' | 'action' | 'block' | 'complete'
-  ) => {
-    addActivity({ agentId, message, timestamp: Date.now(), type })
-  }
-
-  const think = (agentId: AgentId, fragments: string[]) => {
-    setAgentStatus(agentId, 'thinking')
-    setAgentThought(agentId, fragments)
-    emit(agentId, fragments[fragments.length - 1] ?? '...', 'thought')
-  }
-
-  const act = (agentId: AgentId, description: string, amount: number, blocked = false) => {
-    setAgentStatus(agentId, blocked ? 'blocked' : 'acting')
-    clearAgentThought(agentId)
-    const status = blocked ? 'blocked' : 'approved'
-    addTransaction({
-      agentId,
-      description,
-      amount,
-      status,
-      timestamp: Date.now(),
-    })
-    emit(agentId, `${blocked ? 'BLOCKED' : '✓'} ${description}${amount > 0 ? ` — $${amount}` : ''}`, blocked ? 'block' : 'action')
-    setTimeout(() => setAgentStatus(agentId, 'idle'), 1500)
-  }
-
-  const complete = (agentId: AgentId, summary: string) => {
-    setAgentStatus(agentId, 'complete')
-    clearAgentThought(agentId)
-    emit(agentId, summary, 'complete')
-  }
+  const timerRef   = useRef<ReturnType<typeof setInterval> | null>(null)
+  const elapsed    = useRef(0)
+  const eventsRef  = useRef<SimEvent[]>([])
 
   useEffect(() => {
     if (!enabled) {
@@ -73,208 +38,273 @@ export function useMockSimulation(enabled: boolean) {
     if (startedRef.current) return
     startedRef.current = true
 
-    const budget = state.totalBudget
-
-    // Build event timeline
     eventsRef.current = [
-      // t=1 — RESEARCHING kicks off
-      { at: 1, fn: () => setStage('researching') },
+      // ── t=1: research stage begins, PRODUCT starts thinking ──────
       {
-        at: 2, fn: () => think('product', [
-          'analysing market landscape...',
-          `total addressable market: $4.2B`,
-          'ICP: SMBs with <50 employees',
-          'top competitors: 3 main players, fragmented market',
-        ])
-      },
-      {
-        at: 3, fn: () => think('tech', [
-          'scanning tech stack requirements...',
-          'API-first architecture recommended',
-          'estimated infra cost: $40/mo on free tier',
-        ])
-      },
-      {
-        at: 4, fn: () => think('finance', [
-          `total budget: $${budget}`,
-          'setting burn rate targets...',
-          'max single spend: $200',
-        ])
-      },
-      {
-        at: 5, fn: () => think('ops', [
-          'checking compliance requirements...',
-          'GDPR relevant — data processing agreement needed',
-          'estimated legal cost: $50',
-        ])
-      },
-      { at: 6, fn: () => act('product', 'Market research dataset pull — SEMrush', 80) },
-      { at: 7, fn: () => act('ops', 'Legal entity check — Companies House API', 0) },
-      {
-        at: 8, fn: () => think('tech', [
-          'evaluating stack: Next.js + Supabase',
-          'free tier covers 0–500 users',
-          'CI/CD: GitHub Actions — free',
-        ])
+        at: 1,
+        fn: () => {
+          setStage('researching')
+          setAgentStatus('product', 'thinking')
+          setAgentThought('product', ['loading market intelligence...'])
+        },
       },
 
-      // t=10 — PLANNING
-      { at: 10, fn: () => setStage('planning') },
+      // ── t=2: TECH starts thinking ─────────────────────────────────
       {
-        at: 11, fn: () => think('product', [
-          'defining MVP scope...',
-          'feature 1: core symptom checker',
-          'feature 2: user onboarding flow',
-          'feature 3: email digest',
-          'trimming: no mobile app in v1',
-        ])
+        at: 2,
+        fn: () => {
+          setAgentStatus('tech', 'thinking')
+          setAgentThought('tech', ['scanning tech requirements...'])
+        },
       },
-      { at: 12, fn: () => act('product', 'Domain registered — startupcheck.io', 12) },
+
+      // ── t=3: PRODUCT first activity ──────────────────────────────
       {
-        at: 13, fn: () => think('finance', [
-          '$92 spent so far',
-          `${Math.round(((budget - 92) / budget) * 100)}% budget remaining`,
-          'flagging: ad spend request incoming...',
-        ])
+        at: 3,
+        fn: () => {
+          addActivity({
+            agentId: 'product',
+            message: 'Pulling market data from SEMrush...',
+            timestamp: Date.now(),
+            type: 'thought',
+          })
+        },
       },
+
+      // ── t=4: TECH first activity ──────────────────────────────────
       {
-        at: 15, fn: () => think('product', [
-          'proposing ad campaign — Instagram + Google',
-          'budget ask: $300',
-        ])
+        at: 4,
+        fn: () => {
+          addActivity({
+            agentId: 'tech',
+            message: 'Evaluating stack: React + FastAPI',
+            timestamp: Date.now(),
+            type: 'thought',
+          })
+        },
       },
+
+      // ── t=5: PRODUCT research transaction ────────────────────────
       {
-        at: 16, fn: () => {
-          // Finance blocks the big ad request
-          setAgentStatus('finance', 'blocked')
-          emit('finance', 'BLOCKED: Ad campaign $300 — exceeds single-spend limit', 'block')
+        at: 5,
+        fn: () => {
           addTransaction({
-            agentId: 'finance',
-            description: 'Ad campaign $300 — exceeds single-spend limit',
-            amount: 300,
-            status: 'blocked',
+            agentId: 'product',
+            description: 'Market research tool (SEMrush)',
+            amount: 40,
+            status: 'approved',
             timestamp: Date.now(),
           })
-          setTimeout(() => setAgentStatus('finance', 'idle'), 2000)
-        }
-      },
-      {
-        at: 17, fn: () => think('product', [
-          'finance blocked $300 ads...',
-          'adjusting: split campaign — $100 now, scale later',
-        ])
-      },
-      { at: 18, fn: () => act('product', 'Instagram ad campaign — Phase 1', 100) },
-      { at: 19, fn: () => act('ops', 'Vendor contract — design agency Figma file', 0) },
-
-      // t=25 — BUILDING
-      { at: 25, fn: () => setStage('building') },
-      {
-        at: 26, fn: () => think('tech', [
-          'scaffolding Next.js project...',
-          'initialising Supabase schema',
-          'auth: magic link via Resend — free tier',
-          'estimated deploy time: 4 hours',
-        ])
-      },
-      { at: 27, fn: () => act('tech', 'GitHub repo + CI pipeline', 0) },
-      { at: 28, fn: () => act('tech', 'Supabase project provisioned', 0) },
-      {
-        at: 30, fn: () => think('ops', [
-          'preparing SLA with design vendor...',
-          'compliance: Privacy Policy generated',
-          'cookie banner: implemented via Cookiebot free tier',
-        ])
-      },
-      { at: 31, fn: () => act('ops', 'Privacy policy + cookie consent live', 0) },
-      {
-        at: 33, fn: () => think('tech', [
-          'MVP features: 3/3 implemented',
-          'running Lighthouse audit...',
-          'performance: 94, a11y: 89',
-          'fixing: aria-label on CTAs',
-        ])
-      },
-      { at: 35, fn: () => act('tech', 'MVP deployed to Vercel — free tier', 0) },
-      { at: 36, fn: () => act('product', 'Landing page copy + hero image', 45) },
-      {
-        at: 38, fn: () => think('finance', [
-          `$249 spent of $${budget}`,
-          `burn rate: $3.2/min`,
-          'on track — 75% budget remaining',
-        ])
+          addActivity({
+            agentId: 'product',
+            message: '✓ Research tool purchased — $40',
+            timestamp: Date.now(),
+            type: 'action',
+          })
+        },
       },
 
-      // t=45 — approaching danger depending on budget
+      // ── t=6: OPS starts thinking ──────────────────────────────────
       {
-        at: 45, fn: () => {
-          const highSpend = budget < 600
-          if (highSpend) {
-            think('finance', [
-              'WARNING: approaching 30% threshold',
-              'recommend halting discretionary spend',
-            ])
-          }
-        }
+        at: 6,
+        fn: () => {
+          setAgentStatus('ops', 'thinking')
+          setAgentThought('ops', ['GDPR compliance scan...'])
+        },
       },
 
-      // t=50 — DEPLOYING
-      { at: 50, fn: () => setStage('deploying') },
+      // ── t=8: FINANCE starts thinking ─────────────────────────────
       {
-        at: 51, fn: () => think('ops', [
-          'running pre-launch checklist...',
-          'SSL: ✓  DNS: ✓  Backups: ✓',
-          'GDPR consent flow: ✓',
-          'uptime monitor: Freshping free tier',
-        ])
-      },
-      { at: 52, fn: () => act('ops', 'Uptime monitoring configured', 0) },
-      {
-        at: 54, fn: () => think('tech', [
-          'setting up error tracking — Sentry free tier',
-          'logging: Logtail free tier',
-          'alerts: PagerDuty — free for 1 user',
-        ])
-      },
-      { at: 55, fn: () => act('tech', 'Sentry + Logtail error tracking', 0) },
-      { at: 56, fn: () => act('product', 'Email waitlist campaign — Mailchimp', 29) },
-      {
-        at: 58, fn: () => think('product', [
-          'waitlist: 0 signups so far',
-          'launching social posts...',
-          'Twitter/X thread: scheduled',
-          'LinkedIn post: scheduled',
-          'HN "Show HN": drafting...',
-        ])
-      },
-      { at: 60, fn: () => act('product', 'Social media launch posts', 0) },
-      {
-        at: 62, fn: () => think('finance', [
-          `$282 of $${budget} spent`,
-          `${Math.round(((budget - 282) / budget) * 100)}% remaining`,
-          'burn rate slowing — runway healthy',
-        ])
+        at: 8,
+        fn: () => {
+          setAgentStatus('finance', 'thinking')
+          setAgentThought('finance', [`total budget: $${state.totalBudget}`])
+        },
       },
 
-      // t=70 — final sprint
-      { at: 70, fn: () => act('ops', 'Customer support Crisp.chat widget — free', 0) },
-      { at: 71, fn: () => act('product', 'Product Hunt launch listing — free', 0) },
+      // ── t=10: TECH domain transaction ────────────────────────────
       {
-        at: 73, fn: () => think('tech', [
-          'post-launch: 12 users onboarded',
-          'no critical errors in Sentry',
-          'DB queries avg 42ms — healthy',
-          'next sprint: mobile PWA wrapper',
-        ])
+        at: 10,
+        fn: () => {
+          addTransaction({
+            agentId: 'tech',
+            description: 'Domain registration',
+            amount: 12,
+            status: 'approved',
+            timestamp: Date.now(),
+          })
+          addActivity({
+            agentId: 'tech',
+            message: '✓ Domain registered — $12',
+            timestamp: Date.now(),
+            type: 'action',
+          })
+        },
       },
-      { at: 75, fn: () => act('tech', 'Performance monitoring dashboard', 0) },
 
-      // t=80 — wrap up
-      { at: 80, fn: () => complete('ops', 'All operations complete — compliance verified') },
-      { at: 82, fn: () => complete('tech', 'MVP live — 12 users, 0 critical errors') },
-      { at: 84, fn: () => complete('product', 'Launch complete — waitlist active, ads running') },
-      { at: 86, fn: () => complete('finance', `Final spend: $${Math.min(282, budget)} of $${budget} — ${Math.round(((budget - Math.min(282, budget)) / budget) * 100)}% runway remaining`) },
-      { at: 88, fn: () => setStage('complete') },
+      // ── t=12: PRODUCT → acting ───────────────────────────────────
+      {
+        at: 12,
+        fn: () => {
+          setAgentStatus('product', 'acting')
+          clearAgentThought('product')
+          addActivity({
+            agentId: 'product',
+            message: 'Market analysis complete — TAM $4.2B confirmed',
+            timestamp: Date.now(),
+            type: 'action',
+          })
+        },
+      },
+
+      // ── t=15: TECH → acting ───────────────────────────────────────
+      {
+        at: 15,
+        fn: () => {
+          setAgentStatus('tech', 'acting')
+          clearAgentThought('tech')
+          addActivity({
+            agentId: 'tech',
+            message: 'Tech stack decided — deploying infra',
+            timestamp: Date.now(),
+            type: 'action',
+          })
+        },
+      },
+
+      // ── t=18: OPS legal transaction ───────────────────────────────
+      {
+        at: 18,
+        fn: () => {
+          addTransaction({
+            agentId: 'ops',
+            description: 'Legal docs + compliance setup',
+            amount: 80,
+            status: 'approved',
+            timestamp: Date.now(),
+          })
+          addActivity({
+            agentId: 'ops',
+            message: '✓ Legal documents downloaded — $80',
+            timestamp: Date.now(),
+            type: 'action',
+          })
+        },
+      },
+
+      // ── t=20: OPS → complete ──────────────────────────────────────
+      {
+        at: 20,
+        fn: () => {
+          setAgentStatus('ops', 'complete')
+          clearAgentThought('ops')
+          addActivity({
+            agentId: 'ops',
+            message: 'All ops systems operational ✓',
+            timestamp: Date.now(),
+            type: 'complete',
+          })
+        },
+      },
+
+      // ── t=22: PRODUCT → complete ──────────────────────────────────
+      {
+        at: 22,
+        fn: () => {
+          setAgentStatus('product', 'complete')
+          clearAgentThought('product')
+          addActivity({
+            agentId: 'product',
+            message: 'Launch complete — ads live, TAM $4.2B',
+            timestamp: Date.now(),
+            type: 'complete',
+          })
+        },
+      },
+
+      // ── t=25: TECH → complete ─────────────────────────────────────
+      {
+        at: 25,
+        fn: () => {
+          setAgentStatus('tech', 'complete')
+          clearAgentThought('tech')
+          addActivity({
+            agentId: 'tech',
+            message: 'App deployed — app.startup.dev is live',
+            timestamp: Date.now(),
+            type: 'complete',
+          })
+        },
+      },
+
+      // ── t=28: PRODUCT ads transaction ────────────────────────────
+      {
+        at: 28,
+        fn: () => {
+          addTransaction({
+            agentId: 'product',
+            description: 'Instagram + Google ad campaign',
+            amount: 150,
+            status: 'approved',
+            timestamp: Date.now(),
+          })
+          addActivity({
+            agentId: 'product',
+            message: '✓ Ad campaign live — $150',
+            timestamp: Date.now(),
+            type: 'action',
+          })
+        },
+      },
+
+      // ── t=30: FINANCE → complete ──────────────────────────────────
+      {
+        at: 30,
+        fn: () => {
+          setAgentStatus('finance', 'complete')
+          clearAgentThought('finance')
+          addActivity({
+            agentId: 'finance',
+            message: 'Budget audit complete — $326 remaining',
+            timestamp: Date.now(),
+            type: 'complete',
+          })
+        },
+      },
+
+      // ── t=35: advance to PLANNING stage ──────────────────────────
+      {
+        at: 35,
+        fn: () => {
+          setStage('planning')
+          addActivity({
+            agentId: 'product' as AgentId,
+            message: 'Entering planning phase — sprint 2',
+            timestamp: Date.now(),
+            type: 'thought',
+          })
+        },
+      },
+
+      // ── t=40: dangerMode demo — big infra spend ───────────────────
+      {
+        at: 40,
+        fn: () => {
+          addTransaction({
+            agentId: 'finance' as AgentId,
+            description: 'Infrastructure scaling (emergency)',
+            amount: 500,
+            status: 'approved',
+            timestamp: Date.now(),
+          })
+          addActivity({
+            agentId: 'finance' as AgentId,
+            message: '⚠ Emergency infra spend — $500',
+            timestamp: Date.now(),
+            type: 'block',
+          })
+        },
+      },
     ]
 
     setRunning(true)
@@ -285,7 +315,7 @@ export function useMockSimulation(enabled: boolean) {
       const due = eventsRef.current.filter((e) => e.at === elapsed.current)
       due.forEach((e) => e.fn())
 
-      if (elapsed.current >= 90) {
+      if (elapsed.current >= 45) {
         if (timerRef.current) clearInterval(timerRef.current)
         setRunning(false)
       }
