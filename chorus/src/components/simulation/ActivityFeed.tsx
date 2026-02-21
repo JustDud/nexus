@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import ReactMarkdown from 'react-markdown'
 import { useSimulation } from '../../context/SimulationContext'
 import { AGENTS } from '../../types'
 
@@ -18,6 +19,63 @@ function timeAgo(ts: number): string {
   const diff = Math.floor((Date.now() - ts) / 1000)
   if (diff < 60) return `${diff}s ago`
   return `${Math.floor(diff / 60)}m ago`
+}
+
+const MESSAGE_COLLAPSE_THRESHOLD = 120
+
+function ExpandableMessage({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const isLong = text.length > MESSAGE_COLLAPSE_THRESHOLD
+
+  const displayText = isLong && !expanded
+    ? text.slice(0, MESSAGE_COLLAPSE_THRESHOLD) + '...'
+    : text
+
+  return (
+    <span>
+      <span className="activity-markdown">
+        <ReactMarkdown
+          components={{
+            p: ({ children }) => <span>{children}</span>,
+            a: ({ href, children }) => (
+              <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'underline' }}>
+                {children}
+              </a>
+            ),
+            strong: ({ children }) => <strong style={{ color: '#e2e8f0', fontWeight: 700 }}>{children}</strong>,
+            em: ({ children }) => <em style={{ color: '#cbd5e1' }}>{children}</em>,
+            code: ({ children }) => (
+              <code style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 4px', borderRadius: 3, fontSize: '0.9em' }}>
+                {children}
+              </code>
+            ),
+            ul: ({ children }) => <span style={{ display: 'block', paddingLeft: 12, marginTop: 2 }}>{children}</span>,
+            ol: ({ children }) => <span style={{ display: 'block', paddingLeft: 12, marginTop: 2 }}>{children}</span>,
+            li: ({ children }) => <span style={{ display: 'block' }}>• {children}</span>,
+          }}
+        >
+          {displayText}
+        </ReactMarkdown>
+      </span>
+      {isLong && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          style={{
+            fontFamily: "'Space Mono', monospace",
+            fontSize: 10,
+            color: '#3b82f6',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '2px 0',
+            marginLeft: 4,
+          }}
+        >
+          {expanded ? '← less' : 'see more →'}
+        </button>
+      )}
+    </span>
+  )
 }
 
 export function ActivityFeed() {
@@ -136,7 +194,7 @@ export function ActivityFeed() {
                           lineHeight: 1.4,
                         }}
                       >
-                        → {entry.message}
+                        → <ExpandableMessage text={entry.message} />
                       </span>
                     </div>
                     {/* Timestamp */}

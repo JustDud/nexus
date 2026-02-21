@@ -118,7 +118,8 @@ across all phases (research, proposals, and any prior debate rounds). \
 Build on their points, challenge what you disagree with, and reference specifics.
 
 Provide your response in 2-4 paragraphs. Be direct and substantive. \
-You may agree, disagree, or propose alternatives.
+You may agree, disagree, or propose alternatives. \
+Use plain bullet points (- or •) for any lists. No emojis or decorative unicode.
 
 If you want to propose new spending or modify existing proposals, use:
 PROPOSAL: <what>

@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     elevenlabs_model_id: str = "eleven_multilingual_v2"
     elevenlabs_base_url: str = "https://api.elevenlabs.io/v1"
 
+    # Narrator
+    narrator_gemini_model: str = "gemini-2.5-flash"
+    narrator_enabled: bool = True
+
     # Postgres / ingestion pipeline
     postgres_dsn: str = "postgresql://postgres:postgres@localhost:5432/ghost_founder"
     postgres_schema: str = "public"

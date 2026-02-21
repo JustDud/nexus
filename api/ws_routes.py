@@ -7,9 +7,9 @@ import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from simulation.events import EventType, SimulationEvent
+from simulation.narrator import SimulationNarrator
 from simulation.orchestrator import run_simulation
 from simulation.session import create_session
-from simulation.voice import should_voice_event, synthesize_for_agent
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,6 @@ def translate_event(event: SimulationEvent) -> list[dict] | None:
         agent_id = d.get("agent_id", "tech")
         content = d.get("content", "")
         sentences = [s.strip() for s in content.split(".") if s.strip()][:4]
-        summary = content[:120] + "..." if len(content) > 120 else content
         return [
             {
                 "type": "agent_thinking",
@@ -45,7 +44,7 @@ def translate_event(event: SimulationEvent) -> list[dict] | None:
             {
                 "type": "agent_acting",
                 "agentId": agent_id,
-                "action": summary,
+                "action": content,
             },
         ]
 
@@ -53,7 +52,6 @@ def translate_event(event: SimulationEvent) -> list[dict] | None:
         agent_id = d.get("agent_id", "tech")
         content = d.get("content", "")
         sentences = [s.strip() for s in content.split(".") if s.strip()][:3]
-        summary = content[:120] + "..." if len(content) > 120 else content
         return [
             {
                 "type": "agent_thinking",
@@ -63,7 +61,7 @@ def translate_event(event: SimulationEvent) -> list[dict] | None:
             {
                 "type": "agent_acting",
                 "agentId": agent_id,
-                "action": summary,
+                "action": content,
             },
         ]
 
@@ -208,20 +206,6 @@ async def _send_loop(
         if messages:
             for msg in messages:
                 await ws.send_text(json.dumps(msg))
-                # Voice synthesis for key events
-                should_voice, voice_text = should_voice_event(msg["type"], msg)
-                if should_voice:
-                    audio_b64 = await synthesize_for_agent(
-                        voice_text, msg.get("agentName", "narrator"),
-                    )
-                    if audio_b64:
-                        await ws.send_text(json.dumps({
-                            "type": "audio_narration",
-                            "audio_base64": audio_b64,
-                            "content_type": "audio/mpeg",
-                            "text": voice_text,
-                            "agentName": msg.get("agentName", "narrator"),
-                        }))
 
         if event.event_type == EventType.SIMULATION_COMPLETED:
             return
@@ -277,6 +261,11 @@ async def websocket_simulation(ws: WebSocket):
         # Subscribe BEFORE starting simulation so we catch all events
         sub_id, queue = session.event_bus.subscribe()
 
+        # Narrator gets its own subscriber so it processes events independently
+        narrator_sub_id, narrator_queue = session.event_bus.subscribe()
+        narrator = SimulationNarrator(event_bus=session.event_bus, ws=ws)
+        narrator_task = asyncio.create_task(narrator.run(narrator_queue))
+
         # Start simulation as a background task
         sim_task = asyncio.create_task(run_simulation(session))
         session._sim_task = sim_task
@@ -289,7 +278,13 @@ async def websocket_simulation(ws: WebSocket):
             await _send_loop(ws, queue)
         finally:
             recv_task.cancel()
+            # Let narrator finish its pending narrations before tearing down
+            try:
+                await asyncio.wait_for(narrator_task, timeout=30.0)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                narrator_task.cancel()
             session.event_bus.unsubscribe(sub_id)
+            session.event_bus.unsubscribe(narrator_sub_id)
             if not sim_task.done():
                 sim_task.cancel()
 

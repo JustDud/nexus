@@ -1,11 +1,64 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import ReactMarkdown from 'react-markdown'
 import { X } from 'lucide-react'
 import { useSimulation } from '../../context/SimulationContext'
 import { AGENTS, type AgentId } from '../../types'
 import AgentShape from './shapes/AgentShape'
 import ElectricBorder from './ElectricBorder'
 import { formatElapsed } from '../../lib/utils'
+
+const MD_COMPONENTS = {
+  p: ({ children }: any) => <span style={{ display: 'block', marginBottom: 4 }}>{children}</span>,
+  a: ({ href, children }: any) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'underline' }}>
+      {children}
+    </a>
+  ),
+  strong: ({ children }: any) => <strong style={{ color: '#e2e8f0', fontWeight: 700 }}>{children}</strong>,
+  em: ({ children }: any) => <em style={{ color: '#cbd5e1' }}>{children}</em>,
+  code: ({ children }: any) => (
+    <code style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 4px', borderRadius: 3, fontSize: '0.9em' }}>
+      {children}
+    </code>
+  ),
+  ul: ({ children }: any) => <span style={{ display: 'block', paddingLeft: 12, marginTop: 2 }}>{children}</span>,
+  ol: ({ children }: any) => <span style={{ display: 'block', paddingLeft: 12, marginTop: 2 }}>{children}</span>,
+  li: ({ children }: any) => <span style={{ display: 'block' }}>• {children}</span>,
+}
+
+const LOG_COLLAPSE_THRESHOLD = 150
+
+function ExpandableLogMessage({ text, color }: { text: string; color: string }) {
+  const [expanded, setExpanded] = useState(false)
+  const isLong = text.length > LOG_COLLAPSE_THRESHOLD
+  const displayText = isLong && !expanded ? text.slice(0, LOG_COLLAPSE_THRESHOLD) + '...' : text
+
+  return (
+    <span>
+      <span className="activity-markdown">
+        <ReactMarkdown components={MD_COMPONENTS}>{displayText}</ReactMarkdown>
+      </span>
+      {isLong && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          style={{
+            fontFamily: "'Space Mono', monospace",
+            fontSize: 10,
+            color,
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '2px 0',
+            marginLeft: 4,
+          }}
+        >
+          {expanded ? '← less' : 'see more →'}
+        </button>
+      )}
+    </span>
+  )
+}
 
 const AGENT_TAG: Record<string, string> = {
   product: 'PRODUCT',
@@ -380,7 +433,7 @@ export function AgentDetailModal({ agentId, onClose }: AgentDetailModalProps) {
                                       lineHeight: 1.5,
                                     }}
                                   >
-                                    → {entry.message}
+                                    → <ExpandableLogMessage text={entry.message} color={entryColor} />
                                   </span>
                                 </div>
                                 <div

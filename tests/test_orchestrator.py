@@ -136,14 +136,14 @@ class TestTranslateEvent:
         )
         assert translate_event(event) is None
 
-    def test_agent_response_long_content_truncated(self):
+    def test_agent_response_long_content_passed_through(self):
         long_content = "A" * 200
         event = SimulationEvent(
             event_type=EventType.AGENT_RESPONSE,
             data={"agent_id": "tech", "agent_name": "tech", "content": long_content},
         )
         msgs = translate_event(event)
-        assert len(msgs[1]["action"]) < 200
+        assert msgs[1]["action"] == long_content
 
     def test_agent_response_empty_content(self):
         event = SimulationEvent(
