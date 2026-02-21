@@ -24,22 +24,60 @@ class TestSettingsClass:
             "retrieval_top_k",
             "chroma_persist_dir",
             "chroma_collection_name",
+            "stripe_secret_key",
+            "stripe_publishable_key",
+            "stripe_webhook_secret",
+            "stripe_webhook_tolerance_seconds",
+            "elevenlabs_api_key",
+            "elevenlabs_voice_id",
+            "elevenlabs_model_id",
+            "elevenlabs_base_url",
         ]
         for field_name in expected:
             assert field_name in fields, f"Missing field: {field_name}"
 
     def test_settings_defaults(self):
         from config import Settings
-        # Create with only required fields
-        s = Settings(anthropic_api_key="test", openai_api_key="test")
-        assert s.default_model == "claude-sonnet-4-6"
-        assert s.embedding_model == "text-embedding-3-small"
-        assert s.embedding_dimensions == 1536
-        assert s.chunk_size == 512
-        assert s.chunk_overlap == 50
-        assert s.retrieval_top_k == 5
-        assert s.chroma_persist_dir == "./chroma_data"
-        assert s.chroma_collection_name == "ghost_founder"
+        # Create with only required fields and disable .env loading for deterministic defaults.
+        env_backup = {}
+        env_keys = [
+            "STRIPE_SECRET_KEY",
+            "STRIPE_PUBLISHABLE_KEY",
+            "STRIPE_WEBHOOK_SECRET",
+            "ELEVENLABS_API_KEY",
+            "ELEVENLABS_VOICE_ID",
+            "ELEVENLABS_MODEL_ID",
+            "ELEVENLABS_BASE_URL",
+        ]
+        for key in env_keys:
+            env_backup[key] = os.environ.pop(key, None)
+
+        try:
+            s = Settings(
+                anthropic_api_key="test",
+                openai_api_key="test",
+                _env_file=None,
+            )
+            assert s.default_model == "claude-sonnet-4-6"
+            assert s.embedding_model == "text-embedding-3-small"
+            assert s.embedding_dimensions == 1536
+            assert s.chunk_size == 512
+            assert s.chunk_overlap == 50
+            assert s.retrieval_top_k == 5
+            assert s.chroma_persist_dir == "./chroma_data"
+            assert s.chroma_collection_name == "ghost_founder"
+            assert s.stripe_secret_key is None
+            assert s.stripe_publishable_key is None
+            assert s.stripe_webhook_secret is None
+            assert s.stripe_webhook_tolerance_seconds == 300
+            assert s.elevenlabs_api_key is None
+            assert s.elevenlabs_voice_id is None
+            assert s.elevenlabs_model_id == "eleven_multilingual_v2"
+            assert s.elevenlabs_base_url == "https://api.elevenlabs.io/v1"
+        finally:
+            for key, value in env_backup.items():
+                if value is not None:
+                    os.environ[key] = value
 
     def test_settings_override(self):
         from config import Settings

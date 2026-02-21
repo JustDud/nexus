@@ -21,6 +21,18 @@ class TestRetrieverStructure:
 class TestRetrieverSearchLogic:
     """Test the search logic using ChromaDB directly (bypasses embedding API)."""
 
+    # Deterministic low-dimensional vectors keep tests self-contained and
+    # avoid default ONNX model downloads in restricted environments.
+    VECTORS = {
+        "market": [1.0, 0.0, 0.0],
+        "tech": [0.0, 1.0, 0.0],
+        "finance": [0.0, 0.0, 1.0],
+        "pet": [0.95, 0.05, 0.0],
+        "query_market": [0.99, 0.01, 0.0],
+        "query_pet": [0.97, 0.03, 0.0],
+        "query_generic": [0.5, 0.5, 0.0],
+    }
+
     def _make_collection(self, tmp_dir):
         """Create a test collection with pre-embedded data."""
         client = chromadb.PersistentClient(path=tmp_dir)
@@ -39,6 +51,11 @@ class TestRetrieverSearchLogic:
             documents=["The pet health market is worth $300B",
                         "React and Vite are popular frontend tools",
                         "Burn rate should be monitored weekly"],
+            embeddings=[
+                self.VECTORS["market"],
+                self.VECTORS["tech"],
+                self.VECTORS["finance"],
+            ],
             metadatas=[
                 {"domain": "market", "source_file": "report.pdf", "chunk_index": 0},
                 {"domain": "tech", "source_file": "stack.md", "chunk_index": 0},
@@ -50,7 +67,7 @@ class TestRetrieverSearchLogic:
 
         # Query without filter
         results = collection.query(
-            query_texts=["pet health industry"],
+            query_embeddings=[self.VECTORS["query_market"]],
             n_results=2,
             include=["documents", "metadatas", "distances"],
         )
@@ -63,6 +80,11 @@ class TestRetrieverSearchLogic:
         collection.add(
             ids=["m1", "t1", "f1"],
             documents=["Market data here", "Tech stack info", "Financial projections"],
+            embeddings=[
+                self.VECTORS["market"],
+                self.VECTORS["tech"],
+                self.VECTORS["finance"],
+            ],
             metadatas=[
                 {"domain": "market", "source_file": "a.txt", "chunk_index": 0},
                 {"domain": "tech", "source_file": "b.txt", "chunk_index": 0},
@@ -72,7 +94,7 @@ class TestRetrieverSearchLogic:
 
         # Filter by domain
         results = collection.query(
-            query_texts=["info"],
+            query_embeddings=[self.VECTORS["query_generic"]],
             n_results=10,
             where={"domain": "market"},
             include=["documents", "metadatas"],
@@ -85,7 +107,7 @@ class TestRetrieverSearchLogic:
         _, collection = self._make_collection(str(tmp_path))
 
         results = collection.query(
-            query_texts=["anything"],
+            query_embeddings=[self.VECTORS["query_generic"]],
             n_results=5,
             include=["documents"],
         )
@@ -98,7 +120,11 @@ class TestRetrieverSearchLogic:
         # First client: add data
         client1 = chromadb.PersistentClient(path=path)
         coll1 = client1.get_or_create_collection(name="persist_test")
-        coll1.add(ids=["p1"], documents=["Persistent data"])
+        coll1.add(
+            ids=["p1"],
+            documents=["Persistent data"],
+            embeddings=[self.VECTORS["market"]],
+        )
 
         # Second client: read data back
         client2 = chromadb.PersistentClient(path=path)
@@ -109,11 +135,19 @@ class TestRetrieverSearchLogic:
         """Upsert should overwrite existing documents."""
         _, collection = self._make_collection(str(tmp_path))
 
-        collection.add(ids=["dup1"], documents=["Original"])
+        collection.add(
+            ids=["dup1"],
+            documents=["Original"],
+            embeddings=[self.VECTORS["market"]],
+        )
         assert collection.count() == 1
 
         # Upsert should overwrite
-        collection.upsert(ids=["dup1"], documents=["Updated"])
+        collection.upsert(
+            ids=["dup1"],
+            documents=["Updated"],
+            embeddings=[self.VECTORS["market"]],
+        )
         assert collection.count() == 1
         results = collection.get(ids=["dup1"], include=["documents"])
         assert results["documents"][0] == "Updated"
@@ -128,6 +162,7 @@ class TestRetrieverSearchLogic:
                 "The dog is sick and needs a veterinary checkup",
                 "Financial quarterly report for Q3 2025",
             ],
+            embeddings=[self.VECTORS["pet"], self.VECTORS["finance"]],
             metadatas=[
                 {"domain": "test", "source_file": "a.txt", "chunk_index": 0},
                 {"domain": "test", "source_file": "b.txt", "chunk_index": 0},
@@ -135,7 +170,7 @@ class TestRetrieverSearchLogic:
         )
 
         results = collection.query(
-            query_texts=["pet health veterinary"],
+            query_embeddings=[self.VECTORS["query_pet"]],
             n_results=2,
             include=["documents", "distances"],
         )
