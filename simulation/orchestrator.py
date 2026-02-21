@@ -6,6 +6,7 @@ import asyncio
 
 from agents.base import BaseAgent
 from agents.definitions import get_agent
+from integrations.stripe.payments import create_agent_payment
 from rag.retriever import Retriever
 from simulation.debate import DebateManager
 import logging
@@ -296,7 +297,7 @@ class SimulationOrchestrator:
     # ------------------------------------------------------------------
 
     async def _execute_proposal(self, proposal: Proposal) -> None:
-        """Deduct cost from budget, record transaction, check warnings."""
+        """Deduct cost from budget, record transaction, fire Stripe charge, check warnings."""
         # Parse cost string to float (e.g. "$1,500" -> 1500.0)
         cost_str = proposal.estimated_cost.replace("$", "").replace(",", "")
         try:
@@ -304,12 +305,30 @@ class SimulationOrchestrator:
         except ValueError:
             cost = 0.0
 
+        stripe_payment_id = ""
         if cost > 0:
+            # Create a real Stripe PaymentIntent — shows up on dashboard immediately
+            stripe_result = await asyncio.to_thread(
+                create_agent_payment,
+                amount_usd=cost,
+                description=f"{proposal.proposed_by}: {proposal.title}",
+                metadata={
+                    "agent": proposal.proposed_by,
+                    "proposal_id": proposal.id,
+                    "category": proposal.category,
+                    "session_id": self.state.id,
+                    "startup": self.state.startup_idea[:100],
+                },
+            )
+            stripe_payment_id = stripe_result.get("payment_intent_id", "")
+
             self.state.budget.record(
                 description=proposal.title,
                 amount=-cost,
                 approved_by="CEO",
                 category=proposal.category,
+                agent=proposal.proposed_by,
+                stripe_payment_id=stripe_payment_id,
             )
 
         proposal.status = ProposalStatus.EXECUTED
@@ -318,11 +337,14 @@ class SimulationOrchestrator:
             "remaining": self.state.budget.remaining,
             "initial": self.state.initial_budget,
             "total_spent": self.state.budget.total_spent,
+            "spent_by_agent": self.state.budget.spent_by_agent(),
         })
         await self.event_bus.emit(PROPOSAL_EXECUTED, {
             "proposal_id": proposal.id,
             "title": proposal.title,
             "cost": cost,
+            "agent": proposal.proposed_by,
+            "stripe_payment_id": stripe_payment_id,
         })
 
         # 20% warning threshold
@@ -331,6 +353,7 @@ class SimulationOrchestrator:
                 "remaining": self.state.budget.remaining,
                 "initial": self.state.initial_budget,
                 "total_spent": self.state.budget.total_spent,
+                "spent_by_agent": self.state.budget.spent_by_agent(),
                 "warning": "Budget below 20% threshold",
             })
 

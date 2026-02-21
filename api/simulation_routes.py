@@ -112,6 +112,18 @@ async def get_session_detail(session_id: str):
     session = get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail=f"Session {session_id} not found")
+    transactions = [
+        {
+            "id": t.id,
+            "description": t.description,
+            "amount": t.amount,
+            "agent": t.agent,
+            "category": t.category,
+            "timestamp": t.timestamp.isoformat(),
+            "stripe_payment_id": t.stripe_payment_id,
+        }
+        for t in session.state.budget.transactions
+    ]
     return {
         "session_id": session.session_id,
         "idea": session.idea,
@@ -121,6 +133,8 @@ async def get_session_detail(session_id: str):
         "phase": str(session.state.phase),
         "budget_remaining": session.state.budget.remaining,
         "total_spent": session.state.budget.total_spent,
+        "spent_by_agent": session.state.budget.spent_by_agent(),
+        "transactions": transactions,
         "event_count": len(session.event_bus.history),
         "pending_proposals": [p.to_decision_card() for p in session.state.pending_proposals],
         "conversation_length": len(session.state.conversation),
