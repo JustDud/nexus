@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSimulation } from '../context/SimulationContext'
 import { StatusBar } from '../components/simulation/StatusBar'
 import { useAudioPlayer } from '../hooks/useAudioPlayer'
 import LetterGlitch from '../components/simulation/LetterGlitch'
 import AgentShape from '../components/simulation/shapes/AgentShape'
-import type { AgentId } from '../types'
+import { AGENTS, type AgentId, type SimulationState } from '../types'
 
 // ─── Agent data ──────────────────────────────────────────────────────────────
 interface AgentData {
@@ -18,80 +18,112 @@ interface AgentData {
   recommendations: string[]
 }
 
-const AGENT_DATA: AgentData[] = [
-  {
-    id: 'product',
-    name: 'PRODUCT + MARKETING',
-    role: 'Market research, competitive analysis & go-to-market strategy',
-    color: '#F59E0B',
-    metrics: { tasks: 14, time: '6:18', cost: '$243', findings: 11 },
-    findings: [
-      'Target market estimated at $2.4B with 23% YoY growth concentrated in the SMB segment',
-      'Primary competitor gap: no current solution offers real-time multi-agent coordination at this price point',
-      'Early adopter persona: Series A–B startups (20–80 employees) actively replacing manual workflows',
-      'Recommended positioning: "AI-native operations layer" outperforms "automation tool" in messaging tests',
-    ],
-    recommendations: [
-      'Launch with a freemium tier capped at 3 agents to reduce adoption friction significantly',
-      'Prioritize integrations with Linear, Notion, and Slack for the initial product launch',
-      'Content strategy: behind-the-scenes build journey resonates strongly with the ICP on LinkedIn',
-    ],
-  },
-  {
-    id: 'tech',
-    name: 'TECH',
-    role: 'Architecture decisions, tech stack & implementation planning',
-    color: '#10B981',
-    metrics: { tasks: 18, time: '8:44', cost: '$318', findings: 9 },
-    findings: [
-      'FastAPI + WebSocket architecture supports sub-200ms agent response latency at production scale',
-      'Vector DB (Pinecone) outperforms pgvector for semantic search on agent memory above 10k entries',
-      'Multi-agent orchestration layer needs circuit-breaker pattern to prevent cascade failures under load',
-      'TypeScript strict mode adoption reduces runtime errors by ~40% based on comparable production codebases',
-    ],
-    recommendations: [
-      'Implement Redis pub/sub for agent-to-agent messaging before WebSocket connections exceed 1k concurrent',
-      'Adopt trunk-based development with feature flags to enable daily deployments safely',
-      'Prioritize observability (traces, metrics, logs) before scaling past 100 active simulations',
-    ],
-  },
-  {
-    id: 'ops',
-    name: 'OPERATIONS',
-    role: 'Workflow optimization, resource allocation & process design',
-    color: '#8B5CF6',
-    metrics: { tasks: 11, time: '4:52', cost: '$178', findings: 7 },
-    findings: [
-      'Agent idle time averages 34% — primary bottleneck is sequential handoff rather than compute limits',
-      'Approval gate latency is the highest variable cost driver across all measured simulation runs',
-      'Most efficient configurations use parallel task execution across product and tech agents simultaneously',
-      'Human-in-the-loop interventions correlate with 28% higher output quality scores across all runs',
-    ],
-    recommendations: [
-      'Introduce async approval queues to eliminate blocking on non-critical CEO decisions',
-      'Build agent performance dashboards before onboarding the first enterprise customers',
-      'Define SLAs per agent role to set expectations and enable SLA-based enterprise pricing tiers',
-    ],
-  },
-  {
-    id: 'finance',
-    name: 'FINANCE',
-    role: 'Budget analysis, cost projections & financial modeling',
-    color: '#EF4444',
-    metrics: { tasks: 9, time: '3:27', cost: '$134', findings: 6 },
-    findings: [
-      'Blended LLM cost per simulation run averages $0.87 — favorable unit economics for the $29/mo entry tier',
-      'Break-even at 340 paying customers given current infrastructure cost structure and burn rate',
-      'GPU inference costs projected to fall 60% over the next 18 months based on current market trajectory',
-      'Enterprise tier ($499/mo) required to sustain R&D velocity without raising additional capital',
-    ],
-    recommendations: [
-      'Implement per-agent cost caps to prevent runaway spend on complex simulation runs',
-      'Negotiate annual prepay discounts with LLM providers before reaching $10k/month in spend',
-      'Model a usage-based pricing option — it converts 22% better in PLG SaaS at this growth stage',
-    ],
-  },
-]
+function formatTime(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+/**
+ * Extract meaningful lines from agent action content.
+ * Actions contain the full agent response — we split into sentences
+ * and pick the most substantive ones as "findings".
+ */
+function extractFindings(messages: string[]): string[] {
+  const findings: string[] = []
+  const seen = new Set<string>()
+
+  for (const msg of messages) {
+    // Split on sentence boundaries and newlines
+    const parts = msg.split(/(?:\.\s+|\n)/).map(s => s.trim().replace(/^\W+/, ''))
+    for (const part of parts) {
+      // Only keep substantial sentences (not too short, not marker lines)
+      if (part.length < 20) continue
+      if (/^(PROPOSAL|COST|CATEGORY|REASON|VOTE|REASONING|CONDITIONS|SUPPORT|OPPOSE|CONDITIONAL):/i.test(part)) continue
+      // Deduplicate
+      const key = part.slice(0, 40).toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      // Clean trailing period if missing
+      const cleaned = part.endsWith('.') ? part : part + '.'
+      findings.push(cleaned)
+      if (findings.length >= 6) return findings
+    }
+  }
+  return findings
+}
+
+/**
+ * Extract actionable recommendations: lines starting with action verbs,
+ * "should", "recommend", or containing suggestion patterns.
+ */
+function extractRecommendations(messages: string[]): string[] {
+  const recs: string[] = []
+  const seen = new Set<string>()
+  const actionPattern = /^(implement|adopt|prioritize|launch|build|introduce|define|negotiate|model|consider|recommend|ensure|focus|use|create|add|set up|establish|develop|invest|target|optimize|reduce|increase|start|deploy|integrate|schedule|plan|configure|enable|migrate)/i
+  const suggestPattern = /\b(should|recommend|suggest|advise|propose|important to|critical to|need to|must|consider)\b/i
+
+  for (const msg of messages) {
+    const parts = msg.split(/(?:\.\s+|\n)/).map(s => s.trim().replace(/^\W+/, ''))
+    for (const part of parts) {
+      if (part.length < 20) continue
+      if (/^(PROPOSAL|COST|CATEGORY|REASON|VOTE|REASONING|CONDITIONS):/i.test(part)) continue
+      if (!actionPattern.test(part) && !suggestPattern.test(part)) continue
+      const key = part.slice(0, 40).toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      const cleaned = part.endsWith('.') ? part : part + '.'
+      recs.push(cleaned)
+      if (recs.length >= 4) return recs
+    }
+  }
+  return recs
+}
+
+function buildAgentData(state: SimulationState): AgentData[] {
+  return AGENTS.map((def) => {
+    const agentState = state.agents.find(a => a.id === def.id)
+    const activities = state.activityLog.filter(a => a.agentId === def.id)
+
+    // Action messages contain full agent responses — richest content
+    const actionMessages = activities
+      .filter(a => a.type === 'action')
+      .map(a => a.message)
+
+    // Completed actions = tasks with costs
+    const tasks = agentState?.completedActions ?? []
+    const totalSpent = agentState?.totalSpent ?? 0
+
+    // Time: use timestamps from first to last activity for this agent
+    const agentActivities = activities.filter(a => a.timestamp > 0)
+    let timeStr = '0:00'
+    if (agentActivities.length >= 2) {
+      const first = agentActivities[0].timestamp
+      const last = agentActivities[agentActivities.length - 1].timestamp
+      timeStr = formatTime(Math.round((last - first) / 1000))
+    } else if (state.elapsedSeconds > 0) {
+      timeStr = formatTime(state.elapsedSeconds)
+    }
+
+    const findings = extractFindings(actionMessages)
+    const recommendations = extractRecommendations(actionMessages)
+
+    return {
+      id: def.id,
+      name: def.name.toUpperCase(),
+      role: def.role,
+      color: def.color,
+      metrics: {
+        tasks: Math.max(tasks.length, activities.length),
+        time: timeStr,
+        cost: `$${totalSpent.toLocaleString()}`,
+        findings: findings.length,
+      },
+      findings,
+      recommendations,
+    }
+  })
+}
 
 // ─── Corner bracket ───────────────────────────────────────────────────────────
 function Corner({
@@ -217,6 +249,8 @@ export function ProjectSummaryPage() {
   const { state }                 = useSimulation()
   const { isMuted, setIsMuted }   = useAudioPlayer()
 
+  const agentData = useMemo(() => buildAgentData(state), [state])
+
   const [activeIndex, setActiveIndex] = useState(0)
   const [panelIndex,  setPanelIndex]  = useState(0)
   const [panelFading, setPanelFading] = useState(false)
@@ -231,7 +265,7 @@ export function ProjectSummaryPage() {
     }, 220)
   }
 
-  const agent = AGENT_DATA[panelIndex]
+  const agent = agentData[panelIndex]
 
   return (
     <div style={{ minHeight: '100vh', background: '#05050a', display: 'flex', flexDirection: 'column', position: 'relative' }}>
@@ -309,7 +343,7 @@ export function ProjectSummaryPage() {
 
           {/* Left arrow */}
           <button
-            onClick={() => handleChange((activeIndex - 1 + AGENT_DATA.length) % AGENT_DATA.length)}
+            onClick={() => handleChange((activeIndex - 1 + agentData.length) % agentData.length)}
             style={{
               flexShrink: 0, background: 'rgba(100,200,255,0.06)', border: '1px solid rgba(100,200,255,0.12)',
               cursor: 'pointer', padding: '12px 16px', color: 'rgba(100,200,255,0.4)',
@@ -335,8 +369,8 @@ export function ProjectSummaryPage() {
           {/* Carousel viewport */}
           <div style={{ flex: 1, height: 380, position: 'relative', perspective: '1200px' }}>
             <div style={{ width: '100%', height: '100%', position: 'relative', transformStyle: 'preserve-3d' }}>
-              {AGENT_DATA.map((ag, i) => {
-                const total  = AGENT_DATA.length
+              {agentData.map((ag, i) => {
+                const total  = agentData.length
                 const offset = ((i - activeIndex) % total + total) % total
                 return (
                   <CarouselCard key={ag.id} agent={ag} offset={offset} onClick={() => handleChange(i)} />
@@ -347,7 +381,7 @@ export function ProjectSummaryPage() {
 
           {/* Right arrow */}
           <button
-            onClick={() => handleChange((activeIndex + 1) % AGENT_DATA.length)}
+            onClick={() => handleChange((activeIndex + 1) % agentData.length)}
             style={{
               flexShrink: 0, background: 'rgba(100,200,255,0.06)', border: '1px solid rgba(100,200,255,0.12)',
               cursor: 'pointer', padding: '12px 16px', color: 'rgba(100,200,255,0.4)',
@@ -373,7 +407,7 @@ export function ProjectSummaryPage() {
 
         {/* Dot indicators */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 20 }}>
-          {AGENT_DATA.map((ag, i) => (
+          {agentData.map((ag, i) => (
             <button
               key={ag.id}
               onClick={() => handleChange(i)}
