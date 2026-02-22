@@ -3,15 +3,15 @@ import { useSimulation } from '../../context/SimulationContext'
 import { formatElapsed } from '../../lib/utils'
 import LetterGlitch from './LetterGlitch/LetterGlitch'
 
-const STAGES = ['researching', 'planning', 'building', 'deploying', 'operating', 'complete'] as const
+const STAGES = ['research', 'proposal', 'debate', 'decision', 'execution', 'complete'] as const
 
 const STAGE_LABEL: Record<string, string> = {
-  researching: 'RESEARCH',
-  planning:    'PLANNING',
-  building:    'BUILDING',
-  deploying:   'DEPLOY',
-  operating:   'OPS',
-  complete:    'COMPLETE',
+  research:  'RESEARCH',
+  proposal:  'PROPOSAL',
+  debate:    'DEBATE',
+  decision:  'DECISION',
+  execution: 'EXECUTION',
+  complete:  'COMPLETE',
 }
 
 interface StatusBarProps {

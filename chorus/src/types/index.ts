@@ -3,14 +3,14 @@ export type AgentId = 'product' | 'tech' | 'ops' | 'finance'
 export type AgentStatus = 'idle' | 'thinking' | 'acting' | 'blocked' | 'complete'
 
 export type SimulationStage =
-  | 'researching'
-  | 'planning'
-  | 'building'
-  | 'deploying'
-  | 'operating'
+  | 'research'
+  | 'proposal'
+  | 'debate'
+  | 'decision'
+  | 'execution'
   | 'complete'
 
-export type ActivityType = 'thought' | 'action' | 'block' | 'complete'
+export type ActivityType = 'thought' | 'action' | 'block' | 'complete' | 'conclusion'
 
 export type TransactionStatus = 'approved' | 'blocked' | 'pending'
 

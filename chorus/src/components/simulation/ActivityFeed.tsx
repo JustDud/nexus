@@ -164,6 +164,63 @@ export function ActivityFeed() {
               const color = agentColor(entry.agentId)
               const tag   = AGENT_TAG[entry.agentId] ?? entry.agentId.toUpperCase()
 
+              /* ── Conclusion entry — distinct full-width banner ── */
+              if (entry.type === 'conclusion') {
+                const isFailed = entry.message.includes('FAILED')
+                const accentColor = isFailed ? '#ef4444' : '#34d399'
+                return (
+                  <motion.div
+                    key={entry.id}
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.4, ease: 'easeOut' }}
+                    style={{
+                      borderBottom: `1px solid ${accentColor}33`,
+                      borderLeft: `2px solid ${accentColor}`,
+                      background: `linear-gradient(90deg, ${accentColor}12, transparent)`,
+                    }}
+                  >
+                    <div className="px-4 py-3">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <div style={{
+                          width: 8, height: 8, borderRadius: '50%',
+                          background: accentColor,
+                          boxShadow: `0 0 10px ${accentColor}88`,
+                        }} />
+                        <span style={{
+                          fontFamily: "'Space Mono', monospace",
+                          fontWeight: 700,
+                          fontSize: 11,
+                          letterSpacing: '0.15em',
+                          color: accentColor,
+                        }}>
+                          {isFailed ? 'MISSION FAILED' : 'MISSION COMPLETE'}
+                        </span>
+                      </div>
+                      <div style={{
+                        fontFamily: "'Share Tech Mono', monospace",
+                        fontSize: 13,
+                        color: '#C0C8D4',
+                        lineHeight: 1.5,
+                        paddingLeft: 16,
+                      }}>
+                        <ExpandableMessage text={entry.message} />
+                      </div>
+                      <div style={{
+                        fontFamily: "'Share Tech Mono', monospace",
+                        fontSize: 11,
+                        color: '#5A6474',
+                        textAlign: 'right',
+                        marginTop: 4,
+                      }}>
+                        {timeAgo(entry.timestamp)}
+                      </div>
+                    </div>
+                  </motion.div>
+                )
+              }
+
               return (
                 <motion.div
                   key={entry.id}

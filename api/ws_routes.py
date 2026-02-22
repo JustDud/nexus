@@ -108,11 +108,11 @@ def translate_event(event: SimulationEvent) -> list[dict] | None:
         # Map orchestrator phases to frontend stages
         phase = d.get("phase", "").upper()
         phase_to_stage = {
-            "RESEARCH": "researching",
-            "PROPOSAL": "planning",
-            "DEBATE": "planning",
-            "DECISION": "planning",
-            "EXECUTION": "building",
+            "RESEARCH": "research",
+            "PROPOSAL": "proposal",
+            "DEBATE": "debate",
+            "DECISION": "decision",
+            "EXECUTION": "execution",
             "COMPLETED": "complete",
             "FAILED": "complete",
         }
@@ -190,9 +190,16 @@ def translate_event(event: SimulationEvent) -> list[dict] | None:
             msgs.append({
                 "type": "agent_complete",
                 "agentId": aid,
-                "summary": "Simulation complete",
+                "summary": "Analysis complete",
             })
         msgs.append({"type": "stage_change", "stage": "complete"})
+        msgs.append({"type": "set_running", "running": False})
+        msgs.append({
+            "type": "simulation_complete",
+            "status": d.get("status", "completed"),
+            "totalSpent": d.get("total_spent", 0),
+            "remaining": d.get("remaining", 0),
+        })
         return msgs
 
     return None

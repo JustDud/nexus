@@ -36,6 +36,7 @@ export function useMockSimulation(enabled: boolean) {
     }
 
     if (startedRef.current) return
+    if (state.stage === 'complete') return
     startedRef.current = true
 
     eventsRef.current = [
@@ -43,7 +44,7 @@ export function useMockSimulation(enabled: boolean) {
       {
         at: 1,
         fn: () => {
-          setStage('researching')
+          setStage('research')
           setAgentStatus('product', 'thinking')
           setAgentThought('product', ['loading market intelligence...'])
         },
@@ -276,10 +277,10 @@ export function useMockSimulation(enabled: boolean) {
       {
         at: 35,
         fn: () => {
-          setStage('planning')
+          setStage('proposal')
           addActivity({
             agentId: 'product' as AgentId,
-            message: 'Entering planning phase — sprint 2',
+            message: 'Entering proposal phase — agents drafting proposals',
             timestamp: Date.now(),
             type: 'thought',
           })
@@ -302,6 +303,24 @@ export function useMockSimulation(enabled: boolean) {
             message: '⚠ Emergency infra spend — $500',
             timestamp: Date.now(),
             type: 'block',
+          })
+        },
+      },
+
+      // ── t=43: all agents complete ───────────────────────────────
+      {
+        at: 43,
+        fn: () => {
+          setStage('complete')
+          for (const aid of ['product', 'tech', 'ops', 'finance'] as AgentId[]) {
+            setAgentStatus(aid, 'complete')
+            clearAgentThought(aid)
+          }
+          addActivity({
+            agentId: 'product' as AgentId,
+            message: 'SIMULATION COMPLETE — All phases finished. $640 spent, $360 remaining.',
+            timestamp: Date.now(),
+            type: 'conclusion',
           })
         },
       },
