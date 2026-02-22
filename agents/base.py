@@ -149,6 +149,7 @@ class BaseAgent:
         self,
         question: str,
         context: dict | None = None,
+        max_tokens: int = 2048,
     ) -> AgentResponse:
         """Query the agent without RAG retrieval (for debate rounds, reactions, etc.)."""
         user_text = question
@@ -164,7 +165,7 @@ class BaseAgent:
 
         response = await self.client.messages.create(
             model=self.config.model,
-            max_tokens=2048,
+            max_tokens=max_tokens,
             system=self.config.system_prompt,
             messages=[{"role": "user", "content": user_text}],
         )

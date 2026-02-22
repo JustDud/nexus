@@ -21,6 +21,9 @@ export function useWebSocket(url: string | null) {
     setPendingApproval,
     resolveApproval,
     setOpsRound,
+    setDebating,
+    setEavesdropping,
+    setProjectTitle,
   } = useSimulation()
 
   const wsRef = useRef<WebSocket | null>(null)
@@ -40,13 +43,36 @@ export function useWebSocket(url: string | null) {
     }
   }, [])
 
+  const startEavesdrop = useCallback(() => {
+    const ws = wsRef.current
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'eavesdrop_start' }))
+    }
+    setEavesdropping(true)
+  }, [setEavesdropping])
+
+  const stopEavesdrop = useCallback(() => {
+    const ws = wsRef.current
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'eavesdrop_stop' }))
+    }
+    setEavesdropping(false)
+  }, [setEavesdropping])
+
   useEffect(() => {
     if (!url) return
+
+    // Guard against React StrictMode double-mount: only the latest
+    // effect instance should update state. When the cleanup runs for
+    // the first (stale) mount, `cancelled` is set to true so its
+    // onclose / onerror handlers become no-ops.
+    let cancelled = false
 
     const ws = new WebSocket(url)
     wsRef.current = ws
 
     ws.onopen = () => {
+      if (cancelled) return
       setConnected(true)
       setRunning(true)
       ws.send(JSON.stringify({
@@ -54,13 +80,20 @@ export function useWebSocket(url: string | null) {
         budget: state.totalBudget,
       }))
     }
-    ws.onclose = () => {
+    ws.onclose = (ev) => {
+      if (cancelled) return
+      console.warn('[WS] closed — code:', ev.code, 'reason:', ev.reason, 'wasClean:', ev.wasClean)
       setConnected(false)
       setRunning(false)
     }
-    ws.onerror = () => setConnected(false)
+    ws.onerror = (ev) => {
+      if (cancelled) return
+      console.error('[WS] error', ev)
+      setConnected(false)
+    }
 
     ws.onmessage = (event) => {
+      if (cancelled) return
       try {
         const data: WSEvent = JSON.parse(event.data as string)
 
@@ -129,8 +162,26 @@ export function useWebSocket(url: string | null) {
             addActivity({ agentId: 'product' as AgentId, message: `Operations Week ${data.round} — ${data.label}`, timestamp: Date.now(), type: 'thought' })
             break
           }
+          case 'debate_started': {
+            setDebating(true)
+            addActivity({ agentId: 'product' as AgentId, message: `DEBATE STARTED — ${data.topic || 'Agents are arguing over proposals'}`, timestamp: Date.now(), type: 'debate' })
+            break
+          }
+          case 'debate_ended': {
+            setDebating(false)
+            addActivity({ agentId: 'product' as AgentId, message: 'DEBATE CONCLUDED — Positions finalized', timestamp: Date.now(), type: 'debate' })
+            break
+          }
           case 'audio_narration': {
             window.dispatchEvent(new CustomEvent('sim-audio', { detail: data }))
+            break
+          }
+          case 'audio_eavesdrop': {
+            window.dispatchEvent(new CustomEvent('sim-audio', { detail: data }))
+            break
+          }
+          case 'project_title': {
+            setProjectTitle(data.title as string)
             break
           }
           case 'error': {
@@ -149,9 +200,10 @@ export function useWebSocket(url: string | null) {
     }
 
     return () => {
+      cancelled = true
       ws.close()
     }
   }, [url]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { connected, sendDecision, stopSimulation }
+  return { connected, sendDecision, stopSimulation, startEavesdrop, stopEavesdrop }
 }

@@ -9,7 +9,9 @@ from simulation.events import (
     AGENT_SPEAKING,
     AGENT_THINKING,
     CONSENSUS_REACHED,
+    DEBATE_ENDED,
     DEBATE_ROUND_COMPLETE,
+    DEBATE_STARTED,
     PROPOSAL_ESCALATED,
     VOTE_CAST,
     EventBus,
@@ -48,11 +50,12 @@ class DebateManager:
         self.agents = agents
         self.state = state
         self.event_bus = event_bus
+        self._first_debate = True
 
     async def _run_agent_turn(
         self, agent_key: str, round_num: int, topic: str,
     ):
-        """Run a single agent's debate turn. Safe for parallel execution."""
+        """Run a single agent's debate turn."""
         agent = self.agents[agent_key]
         agent_name = agent.config.name
         fid = _FRONTEND_ID.get(agent_key, "tech")
@@ -65,8 +68,10 @@ class DebateManager:
         })
 
         prompt = debate_response_prompt(agent_name, topic)
-        context = self.state.get_context_dict()
-        response = await agent.query_without_rag(prompt, context=context)
+        context = self.state.get_debate_context_dict()
+        response = await agent.query_without_rag(
+            prompt, context=context, max_tokens=400,
+        )
 
         self.state.add_message(
             agent=response.agent,
@@ -97,13 +102,30 @@ class DebateManager:
         for p in proposals:
             p.status = ProposalStatus.DEBATING
 
+        await self.event_bus.emit(DEBATE_STARTED, {
+            "topic": topic,
+            "max_rounds": max_rounds,
+        })
+
+        # Give the user time to see the "Listen In" button on the first debate only
+        if self._first_debate:
+            await asyncio.sleep(3)
+            self._first_debate = False
+
         for round_num in range(1, max_rounds + 1):
             self.state.current_round = round_num
 
-            # All agents debate simultaneously
-            results = await asyncio.gather(
-                *(self._run_agent_turn(ak, round_num, topic) for ak in TURN_ORDER)
-            )
+            # Pause between rounds so the user can observe and click "Listen In"
+            if round_num > 1:
+                await asyncio.sleep(0.5)
+
+            # Stagger agent calls to avoid rate limits (0.5s between each)
+            results = []
+            for i, ak in enumerate(TURN_ORDER):
+                if i > 0:
+                    await asyncio.sleep(0.5)
+                result = await self._run_agent_turn(ak, round_num, topic)
+                results.append(result)
 
             # Process all results after the parallel batch
             for agent_key, agent_name, fid, response in results:
@@ -153,6 +175,10 @@ class DebateManager:
                         "proposal_id": p.id,
                         "title": p.title,
                     })
+
+        await self.event_bus.emit(DEBATE_ENDED, {
+            "rounds_completed": self.state.current_round,
+        })
 
         return proposals
 

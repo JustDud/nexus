@@ -169,3 +169,32 @@ class SimulationState:
             "round": self.current_round,
             "conversation": self.format_full_conversation(),
         }
+
+    def get_debate_context_dict(self) -> dict:
+        """Lightweight context for debate rounds — proposals + last round only."""
+        # Summarize proposals instead of dumping full conversation
+        proposal_lines: list[str] = []
+        for p in self.pending_proposals:
+            title = getattr(p, "title", str(p))
+            cost = getattr(p, "cost", "?")
+            proposal_lines.append(f"- {title} (${cost})")
+        proposals_text = "\n".join(proposal_lines) if proposal_lines else "(none)"
+
+        # Only include the previous debate round messages (not all phases)
+        prev_round = self.current_round - 1 if self.current_round > 1 else 0
+        debate_msgs: list[str] = []
+        for m in self.conversation:
+            if m.phase == Phase.DEBATE and m.round_number == prev_round:
+                debate_msgs.append(f"{m.agent}: {m.content}")
+
+        prev_round_text = "\n\n".join(debate_msgs) if debate_msgs else "(first round)"
+
+        return {
+            "startup_idea": self.startup_idea,
+            "budget_remaining": self.budget.remaining,
+            "budget_initial": self.initial_budget,
+            "total_spent": self.budget.total_spent,
+            "phase": str(self.phase),
+            "round": self.current_round,
+            "conversation": f"Proposals on the table:\n{proposals_text}\n\nPrevious round positions:\n{prev_round_text}",
+        }

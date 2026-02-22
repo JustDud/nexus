@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useSimulation } from '../../context/SimulationContext'
 import { formatElapsed } from '../../lib/utils'
 
@@ -19,9 +19,12 @@ interface StatusBarProps {
   onToggleMute?: () => void
   onStop?: () => void
   operationsRound?: number
+  isDebating?: boolean
+  isEavesdropping?: boolean
+  onToggleEavesdrop?: () => void
 }
 
-export function StatusBar({ isMuted, onToggleMute, onStop }: StatusBarProps) {
+export function StatusBar({ isMuted, onToggleMute, onStop, isDebating, isEavesdropping, onToggleEavesdrop }: StatusBarProps) {
   const { state } = useSimulation()
 
   const currentStageIdx = STAGES.indexOf(state.stage as typeof STAGES[number])
@@ -29,9 +32,7 @@ export function StatusBar({ isMuted, onToggleMute, onStop }: StatusBarProps) {
     ? (state.spentBudget / (state.elapsedSeconds / 60)).toFixed(1)
     : '0.0'
 
-  const missionTitle = state.mission.length > 36
-    ? state.mission.slice(0, 36) + '…'
-    : state.mission
+  const missionTitle = state.projectTitle || state.mission
 
   return (
     <div
@@ -191,6 +192,54 @@ export function StatusBar({ isMuted, onToggleMute, onStop }: StatusBarProps) {
             ${burnRate}/min
           </div>
         </div>
+
+        {/* Eavesdrop button — only during debate */}
+        <AnimatePresence>
+          {isDebating && onToggleEavesdrop && (
+            <motion.button
+              key="eavesdrop"
+              initial={{ opacity: 0, scale: 0.9, width: 0 }}
+              animate={{ opacity: 1, scale: 1, width: 'auto' }}
+              exit={{ opacity: 0, scale: 0.9, width: 0 }}
+              transition={{ duration: 0.25 }}
+              onClick={onToggleEavesdrop}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-lg overflow-hidden"
+              style={{
+                background: isEavesdropping ? 'rgba(139,92,246,0.2)' : 'rgba(255,255,255,0.05)',
+                border: `1px solid ${isEavesdropping ? 'rgba(139,92,246,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                color: isEavesdropping ? '#a78bfa' : '#94a3b8',
+                transition: 'background 200ms, border-color 200ms, color 200ms',
+              }}
+              title={isEavesdropping ? 'Stop listening to agents' : 'Listen to agent debate'}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+                <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+              </svg>
+              <span style={{
+                fontFamily: "'Space Mono', monospace",
+                fontWeight: 700,
+                fontSize: 10,
+                letterSpacing: '0.05em',
+                whiteSpace: 'nowrap',
+              }}>
+                {isEavesdropping ? 'STOP LISTENING' : 'LISTEN IN'}
+              </span>
+              {isEavesdropping && (
+                <motion.span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: '#a78bfa',
+                  }}
+                  animate={{ opacity: [1, 0.3, 1] }}
+                  transition={{ duration: 1, repeat: Infinity }}
+                />
+              )}
+            </motion.button>
+          )}
+        </AnimatePresence>
 
         {/* Mute / unmute button */}
         {onToggleMute && (

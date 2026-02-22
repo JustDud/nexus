@@ -6,8 +6,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-async def synthesize_for_agent(text: str, agent_name: str) -> str | None:
-    """Synthesize speech. Returns base64-encoded audio or None if unavailable."""
+async def synthesize_for_agent(
+    text: str,
+    agent_name: str,
+    voice_id: str | None = None,
+) -> str | None:
+    """Synthesize speech. Returns base64-encoded audio or None if unavailable.
+
+    If *voice_id* is provided it overrides the default ElevenLabs voice.
+    """
     try:
         from integrations.elevenlabs.router import get_elevenlabs_service
     except ImportError:
@@ -22,7 +29,7 @@ async def synthesize_for_agent(text: str, agent_name: str) -> str | None:
         text = text[:497] + "..."
 
     try:
-        result = await service.synthesize(text=text)
+        result = await service.synthesize(text=text, voice_id=voice_id)
         return base64.b64encode(result.audio_bytes).decode("ascii")
     except Exception as e:
         logger.warning("Voice synthesis failed for %s: %s", agent_name, e)
