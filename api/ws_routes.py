@@ -27,21 +27,34 @@ def translate_event(event: SimulationEvent) -> list[dict] | None:
     d = event.data
 
     if et == EventType.AGENT_THINKING:
+        task = d.get("task", "")
+        name = d.get("agent_name", "Agent")
         return [{
             "type": "agent_thinking",
             "agentId": d.get("agent_id", "tech"),
-            "fragments": [f"{d.get('agent_name', 'Agent')} is analyzing..."],
+            "fragments": [task] if task else [f"{name} is analyzing..."],
         }]
 
     if et == EventType.AGENT_RESPONSE:
         agent_id = d.get("agent_id", "tech")
         content = d.get("content", "")
-        sentences = [s.strip() for s in content.split(".") if s.strip()][:4]
+        # Extract meaningful lines: skip very short fragments and marker lines
+        lines = []
+        for raw in content.split("\n"):
+            line = raw.strip().lstrip("#*->•").strip()
+            if len(line) < 8 or line.startswith("PROPOSAL:") or line.startswith("COST:") or line.startswith("CATEGORY:") or line.startswith("REASON:") or line.startswith("VOTE:") or line.startswith("REASONING:") or line.startswith("CONDITIONS:"):
+                continue
+            # Truncate long lines for the terminal display
+            if len(line) > 120:
+                line = line[:117] + "..."
+            lines.append(line)
+            if len(lines) >= 6:
+                break
         return [
             {
                 "type": "agent_thinking",
                 "agentId": agent_id,
-                "fragments": sentences if sentences else ["Processing..."],
+                "fragments": lines if lines else ["Processing..."],
             },
             {
                 "type": "agent_acting",
@@ -97,11 +110,11 @@ def translate_event(event: SimulationEvent) -> list[dict] | None:
         # Map orchestrator phases to frontend stages
         phase = d.get("phase", "").upper()
         phase_to_stage = {
-            "RESEARCH": "researching",
-            "PROPOSAL": "planning",
-            "DEBATE": "planning",
-            "DECISION": "planning",
-            "EXECUTION": "building",
+            "RESEARCH": "research",
+            "PROPOSAL": "proposal",
+            "DEBATE": "debate",
+            "DECISION": "decision",
+            "EXECUTION": "execution",
             "COMPLETED": "complete",
             "FAILED": "complete",
         }
@@ -185,9 +198,16 @@ def translate_event(event: SimulationEvent) -> list[dict] | None:
             msgs.append({
                 "type": "agent_complete",
                 "agentId": aid,
-                "summary": "Simulation complete",
+                "summary": "Analysis complete",
             })
         msgs.append({"type": "stage_change", "stage": "complete"})
+        msgs.append({"type": "set_running", "running": False})
+        msgs.append({
+            "type": "simulation_complete",
+            "status": d.get("status", "completed"),
+            "totalSpent": d.get("total_spent", 0),
+            "remaining": d.get("remaining", 0),
+        })
         return msgs
 
     return None

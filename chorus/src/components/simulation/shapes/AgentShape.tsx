@@ -1,12 +1,12 @@
-import { useRef, useMemo, useEffect } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { useRef, useMemo } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Environment } from '@react-three/drei'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import type { AgentId, AgentStatus } from '../../../types'
 
 // ─── PRODUCT: Particle Data Burst ────────────────────────────────────
-function ProductShape({ state }: { state: AgentStatus }) {
+function ProductShape({ state, bloom = true }: { state: AgentStatus; bloom?: boolean }) {
   const pointsRef  = useRef<THREE.Points>(null)
   const isThinking = state === 'thinking'
   const isActing   = state === 'acting'
@@ -52,6 +52,7 @@ function ProductShape({ state }: { state: AgentStatus }) {
         <bufferGeometry>
           <bufferAttribute
             attach="attributes-position"
+            args={[positions, 3]}
             count={COUNT}
             array={positions}
             itemSize={3}
@@ -76,9 +77,11 @@ function ProductShape({ state }: { state: AgentStatus }) {
           opacity={0.6}
         />
       </mesh>
-      <EffectComposer>
-        <Bloom intensity={isThinking ? 3 : 1.2} luminanceThreshold={0.1} luminanceSmoothing={0.9} />
-      </EffectComposer>
+      {bloom && (
+        <EffectComposer>
+          <Bloom intensity={isThinking ? 3 : 1.2} luminanceThreshold={0.1} luminanceSmoothing={0.9} />
+        </EffectComposer>
+      )}
     </>
   )
 }
@@ -155,6 +158,8 @@ function TechShape({ state }: { state: AgentStatus }) {
           uniforms={uniformsRef.current}
           transparent
           side={THREE.DoubleSide}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
         />
       </mesh>
       <mesh ref={wireRef}>
@@ -164,17 +169,19 @@ function TechShape({ state }: { state: AgentStatus }) {
           wireframe
           transparent
           opacity={isThinking ? 0.5 : 0.2}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
         />
       </mesh>
-      <EffectComposer>
-        <Bloom intensity={isThinking ? 2.5 : 0.8} luminanceThreshold={0.1} luminanceSmoothing={0.9} />
-      </EffectComposer>
+      {/* No EffectComposer here — the AdditiveBlending shader already creates a
+          holographic rim-glow natively. Adding Bloom caused the EffectComposer to
+          render to an opaque intermediate target and flood the canvas with green. */}
     </>
   )
 }
 
 // ─── OPS: Orbital Ring Planet ─────────────────────────────────────────
-function OpsShape({ state }: { state: AgentStatus }) {
+function OpsShape({ state, bloom = true }: { state: AgentStatus; bloom?: boolean }) {
   const groupRef      = useRef<THREE.Group>(null)
   const ring1Ref      = useRef<THREE.Mesh>(null)
   const ring2Ref      = useRef<THREE.Mesh>(null)
@@ -249,6 +256,7 @@ function OpsShape({ state }: { state: AgentStatus }) {
         <bufferGeometry>
           <bufferAttribute
             attach="attributes-position"
+            args={[orbitParticles, 3]}
             count={200}
             array={orbitParticles}
             itemSize={3}
@@ -263,15 +271,17 @@ function OpsShape({ state }: { state: AgentStatus }) {
         />
       </points>
 
-      <EffectComposer>
-        <Bloom intensity={isThinking ? 3 : 1.5} luminanceThreshold={0.1} luminanceSmoothing={0.9} />
-      </EffectComposer>
+      {bloom && (
+        <EffectComposer>
+          <Bloom intensity={isThinking ? 3 : 1.5} luminanceThreshold={0.1} luminanceSmoothing={0.9} />
+        </EffectComposer>
+      )}
     </group>
   )
 }
 
 // ─── FINANCE: Shattered Crystal ──────────────────────────────────────
-function FinanceShape({ state }: { state: AgentStatus }) {
+function FinanceShape({ state, bloom = true }: { state: AgentStatus; bloom?: boolean }) {
   const groupRef      = useRef<THREE.Group>(null)
   const isThinking    = state === 'thinking'
 
@@ -345,11 +355,25 @@ function FinanceShape({ state }: { state: AgentStatus }) {
           emissiveIntensity={isThinking ? 4 : 1.5}
         />
       </mesh>
-      <EffectComposer>
-        <Bloom intensity={isThinking ? 2.5 : 0.8} luminanceThreshold={0.1} luminanceSmoothing={0.9} />
-      </EffectComposer>
+      {bloom && (
+        <EffectComposer>
+          <Bloom intensity={isThinking ? 2.5 : 0.8} luminanceThreshold={0.1} luminanceSmoothing={0.9} />
+        </EffectComposer>
+      )}
     </group>
   )
+}
+
+// ─── SCENE BACKGROUND RESET ───────────────────────────────────────────
+// Ensures scene.background stays null regardless of what Environment or
+// any other drei helper sets it to (the Environment preset loads async,
+// which is why the colored rectangle appears only sometimes).
+function SceneBackground() {
+  const { scene } = useThree()
+  // useFrame runs every frame before rendering — this guarantees scene.background
+  // is always null regardless of async Environment loads or other drei helpers.
+  useFrame(() => { scene.background = null })
+  return null
 }
 
 // ─── SCENE LIGHTS ─────────────────────────────────────────────────────
@@ -376,31 +400,35 @@ interface AgentShapeProps {
   agentId: AgentId
   state: AgentStatus
   size?: number
+  bloom?: boolean
 }
 
-export default function AgentShape({ agentId, state, size = 180 }: AgentShapeProps) {
+export default function AgentShape({ agentId, state, size = 180, bloom = true }: AgentShapeProps) {
   const visualState: AgentStatus = state === 'blocked' ? 'thinking' : state
 
   return (
-    <div style={{ width: size, height: size, overflow: 'visible' }}>
+    <div style={{ width: size, height: size, overflow: 'visible', background: 'transparent' }}>
       <Canvas
         gl={{
           alpha: true,
+          premultipliedAlpha: false,
           antialias: true,
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 1.5,
         }}
+        onCreated={({ gl }) => gl.setClearColor(0x000000, 0)}
         camera={{ position: [0, 0, 3.5], fov: 45 }}
         style={{ width: size, height: size, background: 'transparent', overflow: 'visible' }}
         dpr={[1, 2]}
       >
+        <SceneBackground />
         <SceneLights agentId={agentId} />
-        <Environment preset="night" />
+        <Environment preset="night" background={false} />
 
-        {agentId === 'product' && <ProductShape state={visualState} />}
+        {agentId === 'product' && <ProductShape state={visualState} bloom={bloom} />}
         {agentId === 'tech'    && <TechShape    state={visualState} />}
-        {agentId === 'ops'     && <OpsShape     state={visualState} />}
-        {agentId === 'finance' && <FinanceShape state={visualState} />}
+        {agentId === 'ops'     && <OpsShape     state={visualState} bloom={bloom} />}
+        {agentId === 'finance' && <FinanceShape state={visualState} bloom={bloom} />}
       </Canvas>
     </div>
   )

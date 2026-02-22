@@ -29,6 +29,9 @@ export function useWebSocket(url: string | null) {
   const wsRef = useRef<WebSocket | null>(null)
   const [connected, setConnected] = useState(false)
 
+  // Track whether simulation already finished so we don't reconnect on remount
+  const alreadyComplete = state.stage === 'complete'
+
   const sendDecision = useCallback((approved: boolean, reason?: string) => {
     const ws = wsRef.current
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -60,7 +63,7 @@ export function useWebSocket(url: string | null) {
   }, [setEavesdropping])
 
   useEffect(() => {
-    if (!url) return
+    if (!url || alreadyComplete) return
 
     // Guard against React StrictMode double-mount: only the latest
     // effect instance should update state. When the cleanup runs for
@@ -170,6 +173,21 @@ export function useWebSocket(url: string | null) {
           case 'debate_ended': {
             setDebating(false)
             addActivity({ agentId: 'product' as AgentId, message: 'DEBATE CONCLUDED — Positions finalized', timestamp: Date.now(), type: 'debate' })
+            break
+          }
+          case 'set_running': {
+            setRunning(data.running as boolean)
+            break
+          }
+          case 'simulation_complete': {
+            setRunning(false)
+            const status = data.status as string
+            const spent = data.totalSpent as number
+            const remaining = data.remaining as number
+            const conclusion = status === 'failed'
+              ? `SIMULATION FAILED — $${spent.toLocaleString()} spent, $${remaining.toLocaleString()} remaining. Budget exhausted before completion.`
+              : `SIMULATION COMPLETE — All phases finished. $${spent.toLocaleString()} spent, $${remaining.toLocaleString()} remaining.`
+            addActivity({ agentId: 'product' as AgentId, message: conclusion, timestamp: Date.now(), type: 'conclusion' })
             break
           }
           case 'audio_narration': {

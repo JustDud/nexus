@@ -1,16 +1,17 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useSimulation } from '../../context/SimulationContext'
 import { formatElapsed } from '../../lib/utils'
+import LetterGlitch from './LetterGlitch/LetterGlitch'
 
-const STAGES = ['researching', 'planning', 'building', 'deploying', 'operating', 'complete'] as const
+const STAGES = ['research', 'proposal', 'debate', 'decision', 'execution', 'complete'] as const
 
 const STAGE_LABEL: Record<string, string> = {
-  researching: 'RESEARCH',
-  planning:    'PLANNING',
-  building:    'BUILDING',
-  deploying:   'DEPLOY',
-  operating:   'OPS',
-  complete:    'COMPLETE',
+  research:  'RESEARCH',
+  proposal:  'PROPOSAL',
+  debate:    'DEBATE',
+  decision:  'DECISION',
+  execution: 'EXECUTION',
+  complete:  'COMPLETE',
 }
 
 interface StatusBarProps {
@@ -39,13 +40,34 @@ export function StatusBar({ isMuted, onToggleMute, onStop, isDebating, isEavesdr
       className="nexus-status-bar flex items-center justify-between gap-4 px-5"
       style={{
         height: 52,
-        background: 'rgba(5,5,10,0.98)',
-        borderBottom: `1px solid ${state.dangerMode ? 'rgba(239,68,68,0.4)' : '#111'}`,
-        backdropFilter: 'blur(16px)',
+        background: 'linear-gradient(180deg, rgba(10, 14, 28, 0.95) 0%, rgba(8, 12, 24, 0.85) 100%)',
+        borderBottom: `1px solid ${state.dangerMode ? 'rgba(239,68,68,0.4)' : 'rgba(100, 200, 255, 0.12)'}`,
+        backdropFilter: 'blur(12px)',
+        boxShadow: '0 2px 20px rgba(60, 140, 255, 0.08), 0 1px 0 rgba(100, 200, 255, 0.1)',
         transition: 'border-color 800ms ease',
         zIndex: 10,
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
+      {/* LetterGlitch texture — barely-visible animated watermark */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 0,
+          opacity: 0.09,
+          pointerEvents: 'none',
+        }}
+      >
+        <LetterGlitch
+          glitchColors={['#1a1535', '#0e1a30', '#141020']}
+          glitchSpeed={50}
+          centerVignette={true}
+          outerVignette={false}
+          smooth={true}
+        />
+      </div>
       {/* LEFT: NEXUS // mission */}
       <div
         className="flex items-center gap-2 min-w-0 flex-shrink-0"
@@ -125,11 +147,13 @@ export function StatusBar({ isMuted, onToggleMute, onStop, isDebating, isEavesdr
                   padding: '2px 8px',
                   letterSpacing: '0.05em',
                   background: isCurrent ? 'white' : 'transparent',
+                  border: isCurrent ? '1px solid rgba(200, 220, 255, 0.5)' : '1px solid transparent',
+                  boxShadow: isCurrent ? '0 0 12px rgba(100, 200, 255, 0.15)' : 'none',
                   color: isCurrent
                     ? '#000'
                     : isPast
                     ? '#3b82f6'
-                    : '#1f2937',
+                    : '#5A6474',
                   textDecoration: isPast ? 'line-through' : 'none',
                   opacity: isPast ? 0.5 : 1,
                   transition: 'all 400ms ease',
@@ -139,7 +163,7 @@ export function StatusBar({ isMuted, onToggleMute, onStop, isDebating, isEavesdr
                 {STAGE_LABEL[stage]}
               </div>
               {!isLast && (
-                <span style={{ color: '#333', fontSize: 14, margin: '0 2px', userSelect: 'none' }}>›</span>
+                <span style={{ color: '#3A4454', fontSize: 14, margin: '0 2px', userSelect: 'none' }}>›</span>
               )}
             </div>
           )
@@ -173,6 +197,7 @@ export function StatusBar({ isMuted, onToggleMute, onStop, isDebating, isEavesdr
               fontSize: 28,
               lineHeight: 1,
               color: state.dangerMode ? '#ef4444' : 'white',
+              textShadow: state.dangerMode ? 'none' : '0 0 8px rgba(100, 200, 255, 0.3)',
               letterSpacing: '0.05em',
             }}
             animate={state.dangerMode ? { opacity: [1, 0.5, 1] } : { opacity: 1 }}
@@ -185,7 +210,7 @@ export function StatusBar({ isMuted, onToggleMute, onStop, isDebating, isEavesdr
               fontFamily: "'Space Mono', monospace",
               fontWeight: 400,
               fontSize: 10,
-              color: '#64748b',
+              color: '#7A8494',
               lineHeight: 1.2,
             }}
           >

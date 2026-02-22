@@ -94,32 +94,34 @@ export function ActivityFeed() {
     <div
       className="flex flex-col h-full overflow-hidden"
       style={{
-        background: 'rgba(5,5,10,0.95)',
-        border: '1px solid #111',
+        background: 'rgba(6, 10, 20, 0.7)',
+        border: '1px solid rgba(100, 200, 255, 0.08)',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
         borderRadius: 0,
       }}
     >
       {/* Header */}
       <div
         className="flex items-center gap-2 px-4 py-3 flex-shrink-0"
-        style={{ borderBottom: '1px solid #111' }}
+        style={{ borderBottom: '1px solid rgba(100, 200, 255, 0.08)' }}
       >
         <motion.span
           className="w-2 h-2 rounded-full flex-shrink-0"
           style={{ background: '#22c55e' }}
           animate={
             hasEvents
-              ? { opacity: [1, 0.2, 1], scale: [1, 1.4, 1] }
-              : { opacity: 0.2 }
+              ? { opacity: [1, 0.4, 1], scale: [1, 1.3, 1] }
+              : { opacity: [0.7, 1, 0.7], scale: [1, 1.1, 1] }
           }
-          transition={{ duration: 1.2, repeat: Infinity }}
+          transition={{ duration: 1.5, repeat: Infinity }}
         />
         <span
           style={{
             fontFamily: "'Space Mono', monospace",
             fontWeight: 700,
             fontSize: 13,
-            color: 'white',
+            color: '#C0F0E8',
             letterSpacing: '0.05em',
           }}
         >
@@ -130,7 +132,7 @@ export function ActivityFeed() {
             marginLeft: 'auto',
             fontFamily: "'VT323', monospace",
             fontSize: 18,
-            color: '#64748b',
+            color: '#5A6A7A',
           }}
         >
           {state.activityLog.length}
@@ -138,14 +140,14 @@ export function ActivityFeed() {
       </div>
 
       {/* Entries */}
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div className="flex-1 overflow-y-auto min-h-0" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(100, 200, 255, 0.015) 2px, rgba(100, 200, 255, 0.015) 4px)' }}>
         {!hasEvents ? (
           <div
             className="flex items-center gap-1 p-4"
             style={{
               fontFamily: "'Share Tech Mono', monospace",
               fontSize: 12,
-              color: '#374151',
+              color: '#6B7A8A',
             }}
           >
             <motion.span
@@ -163,6 +165,63 @@ export function ActivityFeed() {
               const tag   = AGENT_TAG[entry.agentId] ?? entry.agentId.toUpperCase()
               const isDebate = entry.type === 'debate'
 
+              /* ── Conclusion entry — distinct full-width banner ── */
+              if (entry.type === 'conclusion') {
+                const isFailed = entry.message.includes('FAILED')
+                const accentColor = isFailed ? '#ef4444' : '#34d399'
+                return (
+                  <motion.div
+                    key={entry.id}
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.4, ease: 'easeOut' }}
+                    style={{
+                      borderBottom: `1px solid ${accentColor}33`,
+                      borderLeft: `2px solid ${accentColor}`,
+                      background: `linear-gradient(90deg, ${accentColor}12, transparent)`,
+                    }}
+                  >
+                    <div className="px-4 py-3">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <div style={{
+                          width: 8, height: 8, borderRadius: '50%',
+                          background: accentColor,
+                          boxShadow: `0 0 10px ${accentColor}88`,
+                        }} />
+                        <span style={{
+                          fontFamily: "'Space Mono', monospace",
+                          fontWeight: 700,
+                          fontSize: 11,
+                          letterSpacing: '0.15em',
+                          color: accentColor,
+                        }}>
+                          {isFailed ? 'MISSION FAILED' : 'MISSION COMPLETE'}
+                        </span>
+                      </div>
+                      <div style={{
+                        fontFamily: "'Share Tech Mono', monospace",
+                        fontSize: 13,
+                        color: '#C0C8D4',
+                        lineHeight: 1.5,
+                        paddingLeft: 16,
+                      }}>
+                        <ExpandableMessage text={entry.message} />
+                      </div>
+                      <div style={{
+                        fontFamily: "'Share Tech Mono', monospace",
+                        fontSize: 11,
+                        color: '#5A6474',
+                        textAlign: 'right',
+                        marginTop: 4,
+                      }}>
+                        {timeAgo(entry.timestamp)}
+                      </div>
+                    </div>
+                  </motion.div>
+                )
+              }
+
               return (
                 <motion.div
                   key={entry.id}
@@ -171,10 +230,10 @@ export function ActivityFeed() {
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.22, ease: 'easeOut' }}
                   style={{
-                    borderBottom: '1px solid #111',
+                    borderBottom: '1px solid rgba(100, 200, 255, 0.06)',
+                    borderLeft: isDebate ? '3px solid #8b5cf6' : `2px solid ${color}`,
                     ...(isDebate ? {
                       background: 'linear-gradient(90deg, rgba(139,92,246,0.12) 0%, rgba(59,130,246,0.06) 100%)',
-                      borderLeft: '3px solid #8b5cf6',
                     } : {}),
                   }}
                 >
@@ -210,7 +269,7 @@ export function ActivityFeed() {
                       style={{
                         fontFamily: "'Share Tech Mono', monospace",
                         fontSize: 11,
-                        color: '#374151',
+                        color: '#5A6474',
                         textAlign: 'right',
                         marginTop: 2,
                       }}

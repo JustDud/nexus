@@ -32,7 +32,7 @@ const initialState: SimulationState = {
   totalBudget: 1000,
   spentBudget: 0,
   dangerMode: false,
-  stage: 'researching',
+  stage: 'research',
   elapsedSeconds: 0,
   agents: initialAgents,
   activityLog: [],

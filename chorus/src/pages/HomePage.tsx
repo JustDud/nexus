@@ -111,6 +111,22 @@ export function HomePage() {
         />
       </motion.div>
 
+      {/* Ambient glow behind card */}
+      <div
+        className="nexus-card-glow"
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -52%)',
+          width: '900px',
+          height: '680px',
+          background: 'radial-gradient(ellipse at 50% 50%, rgba(80,120,255,0.18) 0%, rgba(80,120,255,0.08) 40%, transparent 70%)',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      />
+
       {/* Glassmorphism card */}
       <motion.div
         initial={{ opacity: 0, y: 32 }}
@@ -129,10 +145,11 @@ export function HomePage() {
           zIndex: 1,
           width: '100%',
           maxWidth: 780,
-          background: 'rgba(8,8,16,0.78)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
+          background: 'rgba(10, 15, 30, 0.92)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
           border: '1px solid rgba(59,130,246,0.22)',
+          boxShadow: 'inset 0 1px 0 rgba(150,180,255,0.15), 0 0 100px rgba(70,120,255,0.12), 0 0 200px rgba(70,120,255,0.06), 0 8px 40px rgba(0,0,0,0.5)',
           padding: '40px 40px 32px',
         }}
       >
@@ -143,7 +160,8 @@ export function HomePage() {
               fontFamily: "'Orbitron', sans-serif",
               fontWeight: 900,
               fontSize: 'clamp(42px, 8vw, 68px)',
-              color: '#f8fafc',
+              color: '#FFFFFF',
+              textShadow: '0 0 30px rgba(100,150,255,0.4), 0 0 60px rgba(100,150,255,0.15)',
               letterSpacing: '-0.02em',
               lineHeight: 1,
               marginBottom: 10,
@@ -155,7 +173,7 @@ export function HomePage() {
             style={{
               fontFamily: "'Share Tech Mono', monospace",
               fontSize: 12,
-              color: 'rgba(100,116,139,0.85)',
+              color: '#B0B8C8',
               letterSpacing: '0.22em',
               textTransform: 'uppercase',
             }}
@@ -168,6 +186,7 @@ export function HomePage() {
         <textarea
           value={idea}
           onChange={(e) => setIdea(e.target.value)}
+          className="nexus-mission-textarea"
           placeholder="describe your startup idea..."
           rows={3}
           onFocus={(e) => {
@@ -187,7 +206,7 @@ export function HomePage() {
             padding: '12px 16px',
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: 14,
-            color: '#f8fafc',
+            color: '#F0F2F5',
             resize: 'vertical',
             outline: 'none',
             boxSizing: 'border-box',
@@ -215,7 +234,7 @@ export function HomePage() {
                   ? 'rgba(34,197,94,0.7)'
                   : isDragActive
                   ? 'rgba(59,130,246,0.7)'
-                  : 'rgba(59,130,246,0.22)'
+                  : 'rgba(140,160,200,0.3)'
               }`,
               background: isDragFlash
                 ? 'rgba(34,197,94,0.05)'
@@ -253,12 +272,12 @@ export function HomePage() {
               </>
             ) : (
               <>
-                <Upload size={15} color="rgba(100,116,139,0.6)" />
+                <Upload size={15} color="#8892A4" />
                 <span
                   style={{
                     fontFamily: "'Space Mono', monospace",
                     fontSize: 9,
-                    color: 'rgba(100,116,139,0.6)',
+                    color: '#8892A4',
                     letterSpacing: '0.1em',
                     textAlign: 'center',
                   }}
@@ -290,7 +309,7 @@ export function HomePage() {
                 style={{
                   fontFamily: "'Space Mono', monospace",
                   fontSize: 9,
-                  color: 'rgba(100,116,139,0.65)',
+                  color: '#B0B8C8',
                   letterSpacing: '0.18em',
                   textTransform: 'uppercase',
                 }}
@@ -343,7 +362,7 @@ export function HomePage() {
               <div
                 style={{
                   height: 3,
-                  background: 'rgba(59,130,246,0.1)',
+                  background: 'rgba(255,255,255,0.12)',
                   position: 'relative',
                   overflow: 'hidden',
                 }}
@@ -388,6 +407,7 @@ export function HomePage() {
 
           {/* Launch button */}
           <motion.button
+            className="nexus-launch-btn"
             onClick={handleLaunch}
             disabled={!idea.trim() || isLaunching}
             whileHover={idea.trim() && !isLaunching ? { scale: 1.03 } : {}}
@@ -397,14 +417,14 @@ export function HomePage() {
               fontWeight: 700,
               fontSize: 11,
               letterSpacing: '0.12em',
-              color: idea.trim() && !isLaunching ? '#f8fafc' : 'rgba(100,116,139,0.4)',
+              color: idea.trim() && !isLaunching ? '#FFFFFF' : 'rgba(100,116,139,0.4)',
               background:
                 idea.trim() && !isLaunching
                   ? 'rgba(59,130,246,0.14)'
                   : 'rgba(0,0,0,0.2)',
               border: `1px solid ${
                 idea.trim() && !isLaunching
-                  ? 'rgba(59,130,246,0.45)'
+                  ? 'rgba(140,160,200,0.35)'
                   : 'rgba(100,116,139,0.15)'
               }`,
               padding: '0 28px',

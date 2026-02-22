@@ -95,8 +95,53 @@ html, body, #root {
   transition: background-color 800ms ease, border-color 800ms ease;
 }
 
+/* ── ACTION BUTTONS ─────────────────────────── */
+.nexus-btn::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.03) 40%,
+    rgba(255, 255, 255, 0.06) 50%,
+    rgba(255, 255, 255, 0.03) 60%,
+    transparent 100%
+  );
+  transition: left 0.6s ease;
+  pointer-events: none;
+}
+.nexus-btn:hover::after {
+  left: 100%;
+}
+
 /* ── FONT UTILITIES ─────────────────────────── */
 .font-display  { font-family: "Orbitron", sans-serif !important; }
 .font-terminal { font-family: "Share Tech Mono", monospace !important; }
 .font-vt323    { font-family: "VT323", monospace !important; }
 .font-space    { font-family: "Space Mono", monospace !important; }
+
+/* ── HOME CARD AMBIENT GLOW ─────────────────── */
+@keyframes glowPulse {
+  0%, 100% { opacity: 0.7; }
+  50%       { opacity: 1.0; }
+}
+.nexus-card-glow {
+  animation: glowPulse 4s ease-in-out infinite;
+}
+
+/* ── MISSION TEXTAREA PLACEHOLDER ───────────── */
+.nexus-mission-textarea::placeholder {
+  color: #8892A4;
+  opacity: 1;
+}
+
+/* ── LAUNCH BUTTON HOVER ─────────────────────── */
+.nexus-launch-btn:not(:disabled):hover {
+  border-color: rgba(150, 180, 255, 0.6) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 24px rgba(80, 130, 255, 0.2) !important;
+}
