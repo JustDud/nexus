@@ -11,6 +11,11 @@
   <em><strong>Agent Workspace</strong>: All agents collaborate live across research, debate, and execution</em>
 </p>
 
+<p align="center">
+  <img src="photos/photo3.png" width="75%" alt="NEXUS project summary"><br>
+  <em><strong>Project Summary</strong>: Project summary view</em>
+</p>
+
 🤖 **Multi-agent startup simulator** with **real-time orchestration**, **debate**, and **CEO control**  
 🧠 **RAG-backed reasoning** over an ingested startup knowledge base with **ChromaDB**  
 💳 **Stripe-backed execution** for approved spend, plus optional **Gemini + ElevenLabs narration**
