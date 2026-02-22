@@ -190,10 +190,6 @@ export function useWebSocket(url: string | null) {
             addActivity({ agentId: 'product' as AgentId, message: conclusion, timestamp: Date.now(), type: 'conclusion' })
             break
           }
-          case 'audio_narration': {
-            window.dispatchEvent(new CustomEvent('sim-audio', { detail: data }))
-            break
-          }
           case 'audio_eavesdrop': {
             window.dispatchEvent(new CustomEvent('sim-audio', { detail: data }))
             break

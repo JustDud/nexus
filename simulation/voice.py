@@ -10,10 +10,12 @@ async def synthesize_for_agent(
     text: str,
     agent_name: str,
     voice_id: str | None = None,
+    model_id: str | None = None,
 ) -> str | None:
     """Synthesize speech. Returns base64-encoded audio or None if unavailable.
 
     If *voice_id* is provided it overrides the default ElevenLabs voice.
+    If *model_id* is provided it overrides the default ElevenLabs model.
     """
     try:
         from integrations.elevenlabs.router import get_elevenlabs_service
@@ -29,7 +31,7 @@ async def synthesize_for_agent(
         text = text[:497] + "..."
 
     try:
-        result = await service.synthesize(text=text, voice_id=voice_id)
+        result = await service.synthesize(text=text, voice_id=voice_id, model_id=model_id)
         return base64.b64encode(result.audio_bytes).decode("ascii")
     except Exception as e:
         logger.warning("Voice synthesis failed for %s: %s", agent_name, e)

@@ -1,8 +1,8 @@
-"""Eavesdrop — condensed per-agent debate audio with alternating voices.
+"""Eavesdrop — per-agent debate audio with alternating voices.
 
 When the user activates eavesdrop mode, this module listens for debate round
-completions, condenses each agent's position via Gemini Flash, then synthesizes
-each agent individually using two alternating ElevenLabs voices so the user
+completions, extracts a short soundbite from each agent's position, then
+synthesizes each agent using two alternating ElevenLabs voices so the user
 can hear distinct speakers arguing back and forth.
 """
 
@@ -14,10 +14,8 @@ import logging
 import re
 
 from fastapi import WebSocket
-from google import genai
-from google.genai import types
+from starlette.websockets import WebSocketState
 
-from config import get_settings
 from simulation.events import EventBus, EventType
 from simulation.voice import synthesize_for_agent
 
@@ -27,34 +25,48 @@ logger = logging.getLogger(__name__)
 _VOICE_A = "CwhRBWXzGAHq8TQ4Fs17"
 _VOICE_B = "FGY2WhTYpPnrIDTdsKH5"
 
-_CONDENSE_SYSTEM = """\
-Condense each agent's debate stance into a punchy spoken soundbite.
-For each agent, output EXACTLY one line:
-[Agent Name]: [max 10 words, first person, opinionated]
+# Fastest ElevenLabs model for low-latency eavesdrop
+_TURBO_MODEL = "eleven_turbo_v2_5"
 
-Examples of good output:
-Tech Lead: We can build this in two weeks, easy.
-Finance: That burns half our runway, absolutely not.
-Risk Officer: Legal exposure here is way too high.
 
-One line per agent. No blank lines. No extra text."""
+def _extract_soundbite(text: str, max_words: int = 18) -> str:
+    """Pull the first meaningful sentence from agent output, capped at max_words."""
+    # Strip markdown / bullet noise per line, find first meaningful one
+    lines = []
+    for raw_line in text.split("\n"):
+        line = re.sub(r"^[\s#*\->•]+", "", raw_line).strip()
+        if len(line) < 10:
+            continue
+        m = re.match(r"^(PROPOSAL|COST|CATEGORY|REASON|VOTE|REASONING|CONDITIONS):\s*(.*)", line)
+        if m:
+            # Use the value after the prefix if it's long enough
+            rest = m.group(2).strip()
+            if len(rest) >= 10:
+                line = rest
+            else:
+                continue
+        lines.append(line)
+        break  # first meaningful line only
+
+    if not lines:
+        return ""
+
+    sentence = lines[0]
+    # Truncate to max_words
+    words = sentence.split()
+    if len(words) > max_words:
+        sentence = " ".join(words[:max_words]) + "..."
+    return sentence
 
 
 class EavesdropManager:
-    """Generate per-agent condensed debate audio with alternating voices."""
+    """Generate per-agent debate audio with alternating voices."""
 
     def __init__(self, event_bus: EventBus, ws: WebSocket, ws_lock: asyncio.Lock | None = None) -> None:
         self._event_bus = event_bus
         self._ws = ws
         self._active = False
         self._lock = ws_lock or asyncio.Lock()
-        self._client: genai.Client | None = None
-        self._model: str = "gemini-2.5-flash"
-
-        settings = get_settings()
-        if settings.gemini_api_key:
-            self._client = genai.Client(api_key=settings.gemini_api_key)
-            self._model = settings.narrator_gemini_model
 
     @property
     def is_active(self) -> bool:
@@ -70,7 +82,10 @@ class EavesdropManager:
 
     async def process_debate_round(self, round_num: int) -> None:
         """Generate and send per-agent eavesdrop audio for a completed debate round."""
-        if not self._active or self._client is None:
+        if not self._active:
+            return
+
+        if self._ws.client_state != WebSocketState.CONNECTED:
             return
 
         # Gather agent positions from event history
@@ -84,50 +99,26 @@ class EavesdropManager:
             logger.warning("Eavesdrop: no AGENT_SPEAKING events for round %d", round_num)
             return
 
-        logger.info("Eavesdrop: found %d speaking events for round %d", len(speaking_events), round_num)
-
-        # Build condensation prompt
-        positions = []
+        # Extract soundbites locally (no API call)
+        lines: list[tuple[str, str]] = []
         for e in speaking_events:
             name = e.data.get("agent_name", "Agent")
-            content = e.data.get("content", "")[:500]
-            positions.append(f"{name}:\n{content}")
+            content = e.data.get("content", "")
+            bite = _extract_soundbite(content)
+            if bite:
+                lines.append((name, f"{name} says: {bite}"))
 
-        prompt = (
-            f"Debate round {round_num}. Condense each agent's position:\n\n"
-            + "\n\n---\n\n".join(positions)
-        )
-
-        try:
-            response = await self._client.aio.models.generate_content(
-                model=self._model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=_CONDENSE_SYSTEM,
-                    max_output_tokens=150,
-                    temperature=0.7,
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
-                ),
-            )
-            dialogue_text = response.text
-            if not dialogue_text:
-                return
-        except Exception as e:
-            logger.warning("Eavesdrop condensation failed: %s", e)
-            return
-
-        # Parse individual agent lines
-        lines = _parse_agent_lines(dialogue_text.strip())
         if not lines:
-            logger.warning("Eavesdrop: no agent lines parsed from: %s", dialogue_text[:200])
             return
 
-        logger.info("Eavesdrop: synthesizing %d agent lines in parallel", len(lines))
+        logger.info("Eavesdrop: synthesizing %d agents for round %d", len(lines), round_num)
 
-        # Synthesize all agent lines in parallel
+        # Synthesize all agent lines in parallel with turbo model
         async def _synth(i: int, agent_name: str, line_text: str) -> tuple[int, str, str, str | None]:
             voice_id = _VOICE_A if i % 2 == 0 else _VOICE_B
-            audio_b64 = await synthesize_for_agent(line_text, agent_name, voice_id=voice_id)
+            audio_b64 = await synthesize_for_agent(
+                line_text, agent_name, voice_id=voice_id, model_id=_TURBO_MODEL,
+            )
             return (i, agent_name, line_text, audio_b64)
 
         results = await asyncio.gather(
@@ -141,7 +132,7 @@ class EavesdropManager:
             key=lambda r: r[0],
         ):
             _, agent_name, line_text, audio_b64 = result
-            if not audio_b64 or not self._active:
+            if not audio_b64 or not self._active or self._ws.client_state != WebSocketState.CONNECTED:
                 continue
             try:
                 async with self._lock:
@@ -156,19 +147,3 @@ class EavesdropManager:
             except Exception as e:
                 logger.warning("Eavesdrop WS send failed: %s", e)
                 break
-
-
-def _parse_agent_lines(text: str) -> list[tuple[str, str]]:
-    """Parse 'Agent Name: their line' format into (name, full_line) pairs."""
-    results: list[tuple[str, str]] = []
-    for line in text.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        match = re.match(r"^(.+?):\s*(.+)$", line)
-        if match:
-            name = match.group(1).strip()
-            content = match.group(2).strip()
-            # Include agent name in spoken text for clarity
-            results.append((name, f"{name} says: {content}"))
-    return results

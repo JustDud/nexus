@@ -240,7 +240,11 @@ async def _send_loop(
         messages = translate_event(event)
         if messages:
             for msg in messages:
-                await _ws_send(ws, json.dumps(msg), ws_lock)
+                try:
+                    await _ws_send(ws, json.dumps(msg), ws_lock)
+                except Exception:
+                    # WS disconnected — stop sending
+                    return
 
         if event.event_type == EventType.SIMULATION_COMPLETED:
             return
@@ -295,28 +299,37 @@ async def _eavesdrop_loop(
     """
     processing_tasks: set[asyncio.Task] = set()
 
-    while True:
-        event = await queue.get()
-        if event.event_type == EventType.SIMULATION_COMPLETED:
-            # Wait for any in-flight eavesdrop processing to finish
-            if processing_tasks:
-                await asyncio.gather(*processing_tasks, return_exceptions=True)
-            return
-        if event.event_type == EventType.DEBATE_ENDED:
-            if eavesdrop.is_active:
-                logger.info("Eavesdrop: debate ended, deactivating")
+    try:
+        while True:
+            event = await queue.get()
+            if event.event_type == EventType.SIMULATION_COMPLETED:
                 eavesdrop.deactivate()
-        if event.event_type == EventType.DEBATE_ROUND_COMPLETE:
-            round_num = event.data.get("round", 0)
-            if eavesdrop.is_active:
-                logger.info("Eavesdrop: fire-and-forget processing round %d", round_num)
-                task = asyncio.create_task(
-                    _safe_process_round(eavesdrop, round_num)
-                )
-                processing_tasks.add(task)
-                task.add_done_callback(processing_tasks.discard)
-            else:
-                logger.debug("Eavesdrop: round %d skipped (not active)", round_num)
+                # Give in-flight tasks a few seconds, then bail
+                if processing_tasks:
+                    _, pending = await asyncio.wait(processing_tasks, timeout=5.0)
+                    for t in pending:
+                        t.cancel()
+                return
+            if event.event_type == EventType.DEBATE_ENDED:
+                if eavesdrop.is_active:
+                    logger.info("Eavesdrop: debate ended, deactivating")
+                    eavesdrop.deactivate()
+            if event.event_type == EventType.DEBATE_ROUND_COMPLETE:
+                round_num = event.data.get("round", 0)
+                if eavesdrop.is_active:
+                    logger.info("Eavesdrop: processing round %d", round_num)
+                    task = asyncio.create_task(
+                        _safe_process_round(eavesdrop, round_num)
+                    )
+                    processing_tasks.add(task)
+                    task.add_done_callback(processing_tasks.discard)
+                else:
+                    logger.debug("Eavesdrop: round %d skipped (not active)", round_num)
+    except asyncio.CancelledError:
+        eavesdrop.deactivate()
+        for t in processing_tasks:
+            t.cancel()
+        raise
 
 
 async def _safe_process_round(eavesdrop: EavesdropManager, round_num: int) -> None:
