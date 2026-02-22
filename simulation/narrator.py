@@ -46,7 +46,7 @@ class NarrationFilter:
             EventType.SIMULATION_STARTED: self._sim_started,
             EventType.SIMULATION_COMPLETED: self._sim_completed,
             EventType.PHASE_CHANGED: self._phase_changed,
-            EventType.AGENT_RESPONSE: self._agent_response,
+            # AGENT_RESPONSE deliberately excluded — fires per agent, causes backlog
             EventType.DEBATE_ROUND_COMPLETE: self._debate_round,
             EventType.CONSENSUS_REACHED: self._consensus,
             EventType.DECISION_NEEDED: self._decision_needed,
@@ -88,18 +88,6 @@ class NarrationFilter:
             narration_type="phase_transition",
             context={"phase": phase},
             priority=1,
-        )
-
-    @staticmethod
-    def _agent_response(event: SimulationEvent, _h: list) -> NarrationEvent:
-        content = event.data.get("content", "")
-        return NarrationEvent(
-            narration_type="agent_activity",
-            context={
-                "agent_name": event.data.get("agent_name", "An agent"),
-                "summary": content,
-            },
-            priority=2,
         )
 
     @staticmethod
@@ -163,15 +151,13 @@ class NarrationFilter:
 
 _SYSTEM_PROMPT = """\
 You are a professional narrator for a startup simulation. \
-Describe what is happening in 1-2 concise sentences (under 40 words total). \
+Describe what is happening in exactly ONE short sentence (under 20 words). \
 Use a calm, documentary-style tone. Speak in present tense. \
-Do NOT use quotation marks, agent dialogue, or bullet points. \
-Just describe the action naturally."""
+Do NOT use quotation marks, agent dialogue, or bullet points."""
 
 _PROMPT_TEMPLATES: dict[str, str] = {
     "bookend": "The simulation is {moment}ing. {extra}Describe this moment briefly.",
     "phase_transition": "The simulation transitions to the {phase} phase. Describe this transition.",
-    "agent_activity": "{agent_name} has completed their analysis. Key point: {summary} Briefly describe what happened.",
     "debate_summary": "Debate round {round} has concluded. Positions: {positions} Summarize the round.",
     "decision_moment": "{detail}",
 }
@@ -227,7 +213,7 @@ class NarrationGenerator:
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     system_instruction=_SYSTEM_PROMPT,
-                    max_output_tokens=256,
+                    max_output_tokens=80,
                     temperature=0.7,
                     thinking_config=types.ThinkingConfig(thinking_budget=0),
                 ),
@@ -253,6 +239,8 @@ class SimulationNarrator:
         self._generator: NarrationGenerator | None = None
         self._lock = asyncio.Lock()
         self._pending_tasks: set[asyncio.Task] = set()
+        self._eavesdrop_active = False
+        self._narrating = False  # True while a narration is being generated/spoken
 
         settings = get_settings()
         if not settings.narrator_enabled:
@@ -288,11 +276,26 @@ class SimulationNarrator:
             self._pending_tasks.add(task)
             task.add_done_callback(self._pending_tasks.discard)
 
+    def pause_for_eavesdrop(self) -> None:
+        """Suppress narration while the user is eavesdropping on agents."""
+        self._eavesdrop_active = True
+
+    def resume_from_eavesdrop(self) -> None:
+        """Resume narration after eavesdrop ends."""
+        self._eavesdrop_active = False
+
     async def _maybe_narrate(self, event: SimulationEvent) -> None:
+        if self._eavesdrop_active:
+            return
         narration = self._filter.evaluate(event, self._event_bus.history)
         if narration is None or self._generator is None:
             return
 
+        # Skip low-priority narrations if already busy to prevent audio pile-up
+        if self._narrating and narration.priority >= 2:
+            return
+
+        self._narrating = True
         try:
             text = await self._generator.generate(narration)
             if not text:
@@ -311,3 +314,5 @@ class SimulationNarrator:
                     }))
         except Exception as e:
             logger.warning("Narration failed: %s", e)
+        finally:
+            self._narrating = False

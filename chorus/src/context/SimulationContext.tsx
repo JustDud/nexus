@@ -27,6 +27,7 @@ const initialAgents = AGENTS.map((def) => ({
 
 const initialState: SimulationState = {
   mission: '',
+  projectTitle: '',
   fileContent: null,
   totalBudget: 1000,
   spentBudget: 0,
@@ -40,6 +41,8 @@ const initialState: SimulationState = {
   pendingApproval: null,
   operationsRound: 0,
   isPaused: false,
+  isDebating: false,
+  isEavesdropping: false,
 }
 
 type Action =
@@ -57,6 +60,9 @@ type Action =
   | { type: 'RESOLVE_APPROVAL'; payload: { proposalId: string; approved: boolean } }
   | { type: 'SET_OPS_ROUND'; payload: number }
   | { type: 'SET_PAUSED'; payload: boolean }
+  | { type: 'SET_DEBATING'; payload: boolean }
+  | { type: 'SET_EAVESDROPPING'; payload: boolean }
+  | { type: 'SET_PROJECT_TITLE'; payload: string }
   | { type: 'RESET' }
 
 function reducer(state: SimulationState, action: Action): SimulationState {
@@ -172,6 +178,20 @@ function reducer(state: SimulationState, action: Action): SimulationState {
     case 'SET_PAUSED':
       return { ...state, isPaused: action.payload }
 
+    case 'SET_DEBATING':
+      return {
+        ...state,
+        isDebating: action.payload,
+        // Auto-stop eavesdropping when debate ends
+        isEavesdropping: action.payload ? state.isEavesdropping : false,
+      }
+
+    case 'SET_EAVESDROPPING':
+      return { ...state, isEavesdropping: action.payload }
+
+    case 'SET_PROJECT_TITLE':
+      return { ...state, projectTitle: action.payload }
+
     case 'RESET':
       return { ...initialState }
 
@@ -196,6 +216,9 @@ interface SimulationContextValue {
   setPendingApproval: (approval: PendingApproval | null) => void
   resolveApproval: (proposalId: string, approved: boolean) => void
   setOpsRound: (round: number) => void
+  setDebating: (debating: boolean) => void
+  setEavesdropping: (eavesdropping: boolean) => void
+  setProjectTitle: (title: string) => void
 }
 
 const SimulationContext = createContext<SimulationContextValue | null>(null)
@@ -261,6 +284,18 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
     (round: number) => dispatch({ type: 'SET_OPS_ROUND', payload: round }),
     []
   )
+  const setDebating = useCallback(
+    (debating: boolean) => dispatch({ type: 'SET_DEBATING', payload: debating }),
+    []
+  )
+  const setEavesdropping = useCallback(
+    (eavesdropping: boolean) => dispatch({ type: 'SET_EAVESDROPPING', payload: eavesdropping }),
+    []
+  )
+  const setProjectTitle = useCallback(
+    (title: string) => dispatch({ type: 'SET_PROJECT_TITLE', payload: title }),
+    []
+  )
 
   return (
     <SimulationContext.Provider
@@ -280,6 +315,9 @@ export function SimulationProvider({ children }: { children: ReactNode }) {
         setPendingApproval,
         resolveApproval,
         setOpsRound,
+        setDebating,
+        setEavesdropping,
+        setProjectTitle,
       }}
     >
       {children}

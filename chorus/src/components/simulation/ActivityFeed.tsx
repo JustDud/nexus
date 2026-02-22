@@ -163,6 +163,7 @@ export function ActivityFeed() {
             {entries.map((entry) => {
               const color = agentColor(entry.agentId)
               const tag   = AGENT_TAG[entry.agentId] ?? entry.agentId.toUpperCase()
+              const isDebate = entry.type === 'debate'
 
               /* ── Conclusion entry — distinct full-width banner ── */
               if (entry.type === 'conclusion') {
@@ -228,7 +229,13 @@ export function ActivityFeed() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
                   transition={{ duration: 0.22, ease: 'easeOut' }}
-                  style={{ borderBottom: '1px solid rgba(100, 200, 255, 0.06)', borderLeft: `2px solid ${color}` }}
+                  style={{
+                    borderBottom: '1px solid rgba(100, 200, 255, 0.06)',
+                    borderLeft: isDebate ? '3px solid #8b5cf6' : `2px solid ${color}`,
+                    ...(isDebate ? {
+                      background: 'linear-gradient(90deg, rgba(139,92,246,0.12) 0%, rgba(59,130,246,0.06) 100%)',
+                    } : {}),
+                  }}
                 >
                   <div className="px-4 py-2">
                     {/* First line: [AGENT] → message */}
@@ -238,19 +245,20 @@ export function ActivityFeed() {
                           fontFamily: "'Space Mono', monospace",
                           fontWeight: 700,
                           fontSize: 11,
-                          color,
+                          color: isDebate ? '#a78bfa' : color,
                           flexShrink: 0,
                           whiteSpace: 'nowrap',
                         }}
                       >
-                        [{tag}]
+                        {isDebate ? '[DEBATE]' : `[${tag}]`}
                       </span>
                       <span
                         style={{
                           fontFamily: "'Share Tech Mono', monospace",
                           fontSize: 13,
-                          color: '#94a3b8',
+                          color: isDebate ? '#c4b5fd' : '#94a3b8',
                           lineHeight: 1.4,
+                          fontWeight: isDebate ? 700 : 400,
                         }}
                       >
                         → <ExpandableMessage text={entry.message} />

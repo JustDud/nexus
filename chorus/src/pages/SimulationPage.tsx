@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSimulation } from '../context/SimulationContext'
 import { useMockSimulation } from '../hooks/useMockSimulation'
@@ -89,9 +89,18 @@ function PrismBackground({ danger }: { danger: boolean }) {
 export function SimulationPage() {
   const { state, tickElapsed } = useSimulation()
   const navigate = useNavigate()
-  const { connected, sendDecision, stopSimulation } = useWebSocket(WS_URL)
+  const { connected, sendDecision, stopSimulation, startEavesdrop, stopEavesdrop } = useWebSocket(WS_URL)
   const { isMuted, setIsMuted, isPlaying, stopAll } = useAudioPlayer()
   const [stripeOpen, setStripeOpen] = useState(false)
+
+  const handleToggleEavesdrop = useCallback(() => {
+    stopAll()
+    if (state.isEavesdropping) {
+      stopEavesdrop()
+    } else {
+      startEavesdrop()
+    }
+  }, [state.isEavesdropping, stopAll, startEavesdrop, stopEavesdrop])
 
   useEffect(() => {
     if (!state.mission) navigate('/')
@@ -125,6 +134,9 @@ export function SimulationPage() {
           isMuted={isMuted}
           onToggleMute={() => setIsMuted(!isMuted)}
           onStop={() => { stopAll(); stopSimulation(); navigate('/') }}
+          isDebating={state.isDebating}
+          isEavesdropping={state.isEavesdropping}
+          onToggleEavesdrop={handleToggleEavesdrop}
         />
       </div>
 

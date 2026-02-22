@@ -30,6 +30,7 @@ class EventType(str, Enum):
     PROPOSAL_EXECUTED = "proposal_executed"
     VOTE_CAST = "vote_cast"
     DEBATE_STARTED = "debate_started"
+    DEBATE_ENDED = "debate_ended"
     DEBATE_RESPONSE = "debate_response"
     DEBATE_ROUND_COMPLETE = "debate_round_complete"
     CONSENSUS_REACHED = "consensus_reached"
@@ -50,6 +51,8 @@ PROPOSAL_ESCALATED = EventType.PROPOSAL_ESCALATED.value
 PROPOSAL_EXECUTED = EventType.PROPOSAL_EXECUTED.value
 VOTE_CAST = EventType.VOTE_CAST.value
 CONSENSUS_REACHED = EventType.CONSENSUS_REACHED.value
+DEBATE_STARTED = EventType.DEBATE_STARTED.value
+DEBATE_ENDED = EventType.DEBATE_ENDED.value
 DEBATE_ROUND_COMPLETE = EventType.DEBATE_ROUND_COMPLETE.value
 BUDGET_UPDATED = EventType.BUDGET_UPDATED.value
 

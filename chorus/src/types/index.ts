@@ -10,7 +10,7 @@ export type SimulationStage =
   | 'execution'
   | 'complete'
 
-export type ActivityType = 'thought' | 'action' | 'block' | 'complete' | 'conclusion'
+export type ActivityType = 'thought' | 'action' | 'block' | 'complete' | 'debate' | 'conclusion'
 
 export type TransactionStatus = 'approved' | 'blocked' | 'pending'
 
@@ -61,6 +61,7 @@ export interface Transaction {
 
 export interface SimulationState {
   mission: string
+  projectTitle: string
   fileContent: string | null
   totalBudget: number
   spentBudget: number
@@ -74,6 +75,8 @@ export interface SimulationState {
   pendingApproval: PendingApproval | null
   operationsRound: number
   isPaused: boolean
+  isDebating: boolean
+  isEavesdropping: boolean
 }
 
 export interface AgentDefinition {
